@@ -1,1 +1,9 @@
 .venv/
+
+# CSV FILES
+*.csv
+# ZIP FILES
+*.zip
+
+# DATA FOLDER
+data/
