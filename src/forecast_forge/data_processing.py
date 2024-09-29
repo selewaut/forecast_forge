@@ -14,6 +14,16 @@ def merge_features(
     return pd.merge(df_train, df_features, on=on, how="left")
 
 
+def merge_stores(
+    df_train: pd.DataFrame, df_stores: pd.DataFrame, on: List[str]
+) -> pd.DataFrame:
+    """
+    df_train: pd.DataFrame - DataFrame with the target variable, can contain multiple time series.
+    df_stores: pd.DataFrame - DataFrame with the store information to merge with df_train.
+    """
+    return pd.merge(df_train, df_stores, on=on, how="left")
+
+
 def negative_sales_to_zero(df: pd.DataFrame, target_col: str) -> pd.DataFrame:
     """
     df: pd.DataFrame - DataFrame with the target variable.
@@ -58,7 +68,8 @@ def add_numeric_temperature_bins(df, temp_col="temperature"):
     df["temp_bin"] = pd.cut(
         df[temp_col], bins=bins_fahrenheit, labels=bin_labels_numeric
     )
-
+    # drop the original temperature column
+    df = df.drop(columns=[temp_col])
     return df
 
 
