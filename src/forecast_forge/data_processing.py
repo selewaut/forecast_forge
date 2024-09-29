@@ -1,7 +1,10 @@
-import pandas as pd
-import pandas as pd
-import numpy as np
 from typing import List
+
+import numpy as np
+import pandas as pd
+from sklearn.compose import ColumnTransformer
+from sklearn.impute import SimpleImputer
+from sklearn.pipeline import Pipeline
 
 
 def merge_features(
@@ -97,13 +100,6 @@ def generate_week_feature(df, date_col="date"):
     return df
 
 
-# build pipeline using SKlearn Pipeline and ColumnTransformer for preprocessing using prior functions
-from sklearn.pipeline import Pipeline
-from sklearn.compose import ColumnTransformer
-from sklearn.impute import SimpleImputer
-from sklearn.preprocessing import StandardScaler, OneHotEncoder
-
-
 def build_preprocessing_pipeline():
     """
     Build a preprocessing pipeline using ColumnTransformer from scikit-learn.
@@ -112,7 +108,7 @@ def build_preprocessing_pipeline():
     ColumnTransformer: Preprocessing pipeline for feature transformation.
     """
     # Define numerical and categorical features
-    numeric_features = ["cpi", "unenployment"]
+    numeric_features = ["cpi", "unemployment"]
 
     markdown_features = [
         "markdown1",
@@ -122,7 +118,6 @@ def build_preprocessing_pipeline():
         "markdown5",
     ]
 
-    # Create a preprocessing pipeline for numerical features
     mean_imputer = Pipeline(
         steps=[
             ("imputer", SimpleImputer(strategy="mean")),
@@ -139,9 +134,56 @@ def build_preprocessing_pipeline():
 
     preprocessor = ColumnTransformer(
         transformers=[
-            ("num", mean_imputer, numeric_features),
+            # ("num", mean_imputer, numeric_features),
             ("markdown", markdown_imputer, markdown_features),
         ]
     )
 
     return preprocessor
+
+
+def pre_process_data(
+    df_train: pd.DataFrame,
+    df_test: pd.DataFrame,
+    df_features: pd.DataFrame,
+    target_column: str,
+    date_column: str,
+):
+
+    # merge features
+    df_train = merge_features(df_train, df_features, on=["date", "store", "isholiday"])
+    df_train = merge_stores(df_train, df_stores, on=["store"])
+
+    df_test = merge_features(df_test, df_features, on=["date", "store", "isholiday"])
+    df_test = merge_stores(df_test, df_stores, on=["store"])
+
+    # generate week feature
+    df_train = generate_week_feature(df_train, date_col=date_column)
+    df_test = generate_week_feature(df_test, date_col=date_column)
+
+    # general imputting.
+    df_train = negative_sales_to_zero(df_train, target_column)
+    df_train = add_numeric_temperature_bins(df_train)
+
+    # pre-processing pipeline
+    pre_processing_pipeline = build_preprocessing_pipeline()
+    df_train = pre_processing_pipeline.fit_transform(df_train)
+
+    df_train.set_index(["store_dept", "date"], inplace=True)
+    df_test.set_index(["store_dept", "date"], inplace=True)
+
+    return df_train, df_test
+
+
+if __name__ == "__main__":
+    from forecast_forge.data_loader import load_data
+
+    df_train, df_test, df_features, df_stores = load_data()
+
+    df_train = pre_process_data(
+        df_train,
+        df_test,
+        df_features,
+        target_column="weekly_sales",
+        date_column="date",
+    )
