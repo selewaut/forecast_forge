@@ -112,19 +112,35 @@ def build_preprocessing_pipeline():
     ColumnTransformer: Preprocessing pipeline for feature transformation.
     """
     # Define numerical and categorical features
-    numeric_features = ["temperature", "fuel_price", "cpi", "unenployment"]
+    numeric_features = ["cpi", "unenployment"]
+
+    markdown_features = [
+        "markdown1",
+        "markdown2",
+        "markdown3",
+        "markdown4",
+        "markdown5",
+    ]
 
     # Create a preprocessing pipeline for numerical features
-    numeric_transformer = Pipeline(
+    mean_imputer = Pipeline(
+        steps=[
+            ("imputer", SimpleImputer(strategy="mean")),
+        ]
+    )
+
+    markdown_imputer = Pipeline(
         steps=[
             ("imputer", SimpleImputer(strategy="constant", fill_value=0)),
         ]
     )
 
-    # Combine the numerical and categorical preprocessing pipelines
+    # apply both imputers to the respective columns
+
     preprocessor = ColumnTransformer(
         transformers=[
-            ("num", numeric_transformer, numeric_features),
+            ("num", mean_imputer, numeric_features),
+            ("markdown", markdown_imputer, markdown_features),
         ]
     )
 
