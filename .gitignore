@@ -132,3 +132,5 @@ images/*
 .env
 *.csv
 /data
+
+/mlruns
