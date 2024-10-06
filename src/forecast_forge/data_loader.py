@@ -30,10 +30,10 @@ def load_data():
     df_features["date"] = pd.to_datetime(df_features["date"])
 
     # combine store dept columns
-    df_train["store_dept"] = (
+    df_train["group_id"] = (
         df_train["store"].astype(str) + "_" + df_train["dept"].astype(str)
     )
-    df_test["store_dept"] = (
+    df_test["group_id"] = (
         df_test["store"].astype(str) + "_" + df_test["dept"].astype(str)
     )
 
