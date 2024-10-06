@@ -1,0 +1,126 @@
+promoted_props:
+  - prediction_length
+  - group_id
+  - date_col
+  - target
+  - metric
+  - freq
+  - accelerator
+  - backtest_months
+  - stride
+  - static_features
+  - dynamic_future
+  - dynamic_historical
+
+models:
+
+  StatsForecastBaselineWindowAverage:
+    module: forecast_forge.baseline_model
+    model_class: StatsFcBaselineWindowAverage
+    framework: StatsForecast
+    model_type: local
+    model_spec:
+      window_size: 7
+
+  StatsForecastBaselineSeasonalWindowAverage:
+    module: forecast_forge.baseline_model
+    model_class: StatsFcBaselineSeasonalWindowAverage
+    framework: StatsForecast
+    model_type: local
+    model_spec:
+      season_length: 7
+      window_size: 7
+
+  StatsForecastBaselineNaive:
+    module: forecast_forge.baseline_model
+    model_class: StatsFcBaselineNaive
+    framework: StatsForecast
+    model_type: local
+
+  StatsForecastBaselineSeasonalNaive:
+    module: forecast_forge.baseline_model
+    model_class: StatsFcBaselineSeasonalNaive
+    framework: StatsForecast
+    model_type: local
+    model_spec:
+      season_length: 7
+
+  StatsForecastAutoArima:
+    module: forecast_forge.baseline_model
+    model_class: StatsFcAutoArima
+    framework: StatsForecast
+    model_type: local
+    model_spec:
+      season_length: 7
+      approximation: false
+
+  StatsForecastAutoETS:
+    module: forecast_forge.baseline_model
+    model_class: StatsFcAutoETS
+    framework: StatsForecast
+    model_type: local
+    model_spec:
+      season_length: 7
+      model: "ZZZ"
+
+  StatsForecastAutoCES:
+    module: forecast_forge.baseline_model
+    model_class: StatsFcAutoCES
+    framework: StatsForecast
+    model_type: local
+    model_spec:
+      season_length: 7
+      model: "Z"
+
+  StatsForecastAutoTheta:
+    module: forecast_forge.baseline_model
+    model_class: StatsFcAutoTheta
+    framework: StatsForecast
+    model_type: local
+    model_spec:
+      season_length: 7
+      decomposition_type: "multiplicative"
+
+  StatsForecastTSB:
+    module: forecast_forge.baseline_model
+    model_class: StatsFcTSB
+    framework: StatsForecast
+    model_type: local
+    model_spec:
+      alpha_d: 0.2
+      alpha_p: 0.2
+
+  StatsForecastADIDA:
+    module: forecast_forge.baseline_model
+    model_class: StatsFcADIDA
+    framework: StatsForecast
+    model_type: local
+    model_spec:
+
+  StatsForecastIMAPA:
+    module: forecast_forge.baseline_model
+    model_class: StatsFcIMAPA
+    framework: StatsForecast
+    model_type: local
+    model_spec:
+
+  StatsForecastCrostonClassic:
+    module: forecast_forge.baseline_model
+    model_class: StatsFcCrostonClassic
+    framework: StatsForecast
+    model_type: local
+    model_spec:
+
+  StatsForecastCrostonOptimized:
+    module: forecast_forge.baseline_model
+    model_class: StatsFcCrostonOptimized
+    framework: StatsForecast
+    model_type: local
+    model_spec:
+
+  StatsForecastCrostonSBA:
+    module: forecast_forge.baseline_model
+    model_class: StatsFcCrostonSBA
+    framework: StatsForecast
+    model_type: local
+    model_spec:
