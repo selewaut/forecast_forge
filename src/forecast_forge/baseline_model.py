@@ -5,184 +5,270 @@ from typing import List
 
 import numpy as np
 import pandas as pd
-from statsmodels.tsa.arima.model import ARIMA
-from statsmodels.tsa.statespace.sarimax import SARIMAX
-from pmdarima import auto_arima, model_selection
-from sklearn.metrics import mean_squared_error
 from ray.util.multiprocessing import Pool
+from sklearn.metrics import mean_squared_error
+from sktime.forecasting.arima import AutoARIMA
 
+# time series splitter
+from sktime.split import temporal_train_test_split
 
-from forecast_forge.data_processing import (
-    add_numeric_temperature_bins,
-    merge_features,
-    negative_sales_to_zero,
-    merge_stores,
-    build_preprocessing_pipeline,
-)
 from forecast_forge.data_loader import load_data
+from forecast_forge.data_processing import pre_process_data
+from forecast_forge.abstract_model import ForecastingRegressor
 
 
-def pre_process_data(
-    df_train: pd.DataFrame,
-    df_test: pd.DataFrame,
-    df_features: pd.DataFrame,
-    target_column: str,
-    date_column: str,
-):
-    df_train = df_train.copy()
-
-    df_train[date_column] = pd.to_datetime(df_train[date_column])
-    df_test[date_column] = pd.to_datetime(df_test[date_column])
-    df_features[date_column] = pd.to_datetime(df_features[date_column])
-
-    # lower case column names
-    df_train.columns = df_train.columns.str.lower()
-    df_test.columns = df_test.columns.str.lower()
-    df_features.columns = df_features.columns.str.lower()
-    # merge features
-    df_train = merge_features(
-        df_train, df_features, on=["date", "store", "dept", "isholiday"]
-    )
-    df_train = merge_stores(df_train, df_stores, on=["store"])
-
-    # general imputting.
-    df_train = negative_sales_to_zero(df_train, target_column)
-    df_train = add_numeric_temperature_bins(df_train)
-
-    # pre-processing pipeline
-    pre_processing_pipeline = build_preprocessing_pipeline()
-    df_train = pre_processing_pipeline.fit_transform(df_train)
-
-    # create ARIMA model tuning parameters for each series.
-
-    return df_train
+import pandas as pd
+import numpy as np
 
 
-def fit_arima(ts, store_name):
-    # Automatically find the best ARIMA model for each store's time series
-    model = auto_arima(
-        ts,
-        start_p=1,
-        start_q=1,
-        start_P=1,
-        start_Q=1,
-        max_p=5,
-        max_q=5,
-        max_P=5,
-        max_Q=5,
-        seasonal=True,
-        stepwise=True,
-        suppress_warnings=True,
-        D=10,
-        max_D=10,
-        error_action="ignore",
-    )
-    return store_name, model
+from statsforecast import StatsForecast
+from statsforecast.models import (
+    AutoETS,
+    AutoARIMA,
+    ADIDA,
+    IMAPA,
+    TSB,
+    AutoCES,
+    AutoTheta,
+    CrostonClassic,
+    CrostonOptimized,
+    CrostonSBA,
+    WindowAverage,
+    SeasonalWindowAverage,
+    Naive,
+    SeasonalNaive,
+)
 
 
-def forecast(model, periods=5):
-    # Forecast for 'periods' steps into the future
-    forecast, conf_int = model.predict(n_periods=periods, return_conf_int=True)
-    return forecast, conf_int
+class StatsFcForecaster(ForecastingRegressor):
+    def __init__(self, params):
+        super().__init__(params)
+        self.params = params
+        self.model_spec = None
+        self.model = None
 
+    def prepare_data(self, df: pd.DataFrame, future: bool = False) -> pd.DataFrame:
 
-def fit_models_for_stores(df):
-    """
-    Parallelized ARIMA fitting using Ray's Pool for parallelism
-    df: Polars DataFrame with each store's time series as columns
-    """
-    with Pool() as pool:
-        results = pool.starmap(
-            fit_arima, [(df[col].to_numpy(), col) for col in df.columns]
+        if not future:
+            # Prepare historical dataframe with/out exogenous regressors for training
+            # Fix here
+            df[self.params.target] = df[self.params.target].clip(0)
+            if "dynamic_future" in self.params.keys():
+                try:
+                    df_statsfc = df[
+                        [self.params.group_id, self.params.date_col, self.params.target]
+                        + self.params.dynamic_future
+                    ]
+                except Exception as e:
+                    raise Exception(f"Exogenous regressors missing: {e}")
+            else:
+                df_statsfc = df[
+                    [self.params.group_id, self.params.date_col, self.params.target]
+                ]
+
+            df_statsfc = df_statsfc.rename(
+                columns={
+                    self.params.group_id: "unique_id",
+                    self.params.date_col: "ds",
+                    self.params.target: "y",
+                }
+            )
+        else:
+            # Prepare future dataframe with/out exogenous regressors for forecasting
+            if "dynamic_future" in self.params.keys():
+                try:
+                    df_statsfc = df[
+                        [self.params.group_id, self.params.date_col]
+                        + self.params.dynamic_future  # additional regressors.
+                    ]
+                except Exception as e:
+                    raise Exception(f"Exogenous regressors missing: {e}")
+            else:
+                df_statsfc = df[[self.params.group_id, self.params.date_col]]
+
+            df_statsfc = df_statsfc.rename(
+                columns={
+                    self.params.group_id: "unique_id",
+                    self.params.date_col: "ds",
+                }
+            )
+        return df_statsfc
+
+    def fit(self, x, y=None):
+        self.model = StatsForecast(models=[self.model_spec], freq=self.freq, n_jobs=-1)
+        self.model.fit(x)
+
+    def predict(self, hist_df: pd.DataFrame, val_df: pd.DataFrame = None):
+        _df = self.prepare_data(hist_df)
+        _exogenous = self.prepare_data(val_df, future=True)
+        self.fit(_df)
+        if len(_exogenous.columns) == 2:  # only unique_id and ds, no features.
+            forecast_df = self.model.predict(self.params["prediction_length"])
+        else:
+            forecast_df = self.model.predict(
+                self.params["prediction_length"], _exogenous
+            )
+        target = [
+            col
+            for col in forecast_df.columns.to_list()
+            if col not in ["unique_id", "ds"]
+        ][0]
+        forecast_df = forecast_df.reset_index(drop=True).rename(
+            columns={
+                "unique_id": self.params.group_id,
+                "ds": self.params.date_col,
+                target: self.params.target,
+            }
         )
-    models = {store: model for store, model in results}
-    return models
+        # Fix here
+        forecast_df[self.params.target] = forecast_df[self.params.target].clip(0)
+        return forecast_df, self.model
+
+    def forecast(self, df: pd.DataFrame, spark=None):
+        _df = df[df[self.params.target].notnull()]
+        _df = self.prepare_data(_df)
+        self.fit(_df)
+        if "dynamic_future" in self.params.keys():
+            _last_date = _df["ds"].max()
+            _future_df = df[
+                (df[self.params["date_col"]] > np.datetime64(_last_date))
+                & (
+                    df[self.params["date_col"]]
+                    <= np.datetime64(_last_date + self.prediction_length_offset)
+                )
+            ]
+            _future_exogenous = self.prepare_data(_future_df, future=True)
+            try:
+                forecast_df = self.model.predict(
+                    self.params["prediction_length"], _future_exogenous
+                )
+            except Exception as e:
+                print(
+                    f"Removing group_id {df[self.params.group_id][0]} as future exogenous "
+                    f"regressors are not provided."
+                )
+                return pd.DataFrame(columns=[self.params.date_col, self.params.target])
+        else:
+            forecast_df = self.model.predict(self.params["prediction_length"])
+
+        target = [
+            col
+            for col in forecast_df.columns.to_list()
+            if col not in ["unique_id", "ds"]
+        ][0]
+        forecast_df = forecast_df.reset_index(drop=True).rename(
+            columns={
+                "unique_id": self.params.group_id,
+                "ds": self.params.date_col,
+                target: self.params.target,
+            }
+        )
+        # Fix here
+        forecast_df[self.params.target] = forecast_df[self.params.target].clip(0)
+        return forecast_df, self.model
 
 
-def split_train_val(df_train, val_size=39):
-    """
-    Split df_train into df_train_split and df_val where df_val contains the last val_size dates
-    df_train: Polars DataFrame with time series data
-    val_size: Number of rows (dates) to use for validation set (default is 39)
-    """
-    # Ensure the DataFrame is sorted by date
-    df_train = df_train.sort("date")
-
-    # get max_date by combination
-
-    df_max_date = df_train.groupby(["store", "dept"])["date"].max()
-
-    # substract val_size from max_date
-
-    df_max_date = df_max_date - pd.Timedelta(days=val_size)
-
-    # reset the index and rename date
-
-    df_max_date = df_max_date.reset_index().rename(columns={"date": "max_date"})
-
-    # merge the max_date with the original df_train
-    df_train = df_train.merge(df_max_date, on=["store", "dept"], how="left")
-
-    # filter the data based on the max_date
-
-    df_val = df_train[df_train["date"] > df_train["max_date"]]
-    df_train = df_train[df_train["date"] <= df_train["max_date"]]
-
-    return df_train, df_val
-
-
-def train(df_train, df_test, df_features, df_stores):
-
-    df_train = pre_process_data(
-        df_train,
-        df_test,
-        df_features,
-        target_column="weekly_sales",
-        date_column="date",
-    )
-
-    df_wide = df_train.pivot(values="sales", index="date", columns=["store", "dept"])
-
-    # split the data into train and test.Forecast horizon is 39 weeks for each combination.
-    df_train_split, df_val = split_train_val(df_wide)
-
-    # fit the ARIMA models for each store and department combination
-    models = fit_models_for_stores(df_train_split)
-
-    # evaluate the models on the validation set
-    val_predictions = {}
-    for store_dept, model in models.items():
-        store, dept = store_dept
-        val_predictions[store_dept] = forecast(model)
-
-    # calculate error metrics
-    val_errors = {}
-    for store_dept, (forecast, conf_int) in val_predictions.items():
-        store, dept = store_dept
-        val_errors[store_dept] = mean_squared_error(
-            df_val[(store, dept)].to_numpy(), forecast
+class StatsFcBaselineWindowAverage(StatsFcForecaster):
+    def __init__(self, params):
+        super().__init__(params)
+        self.model_spec = WindowAverage(
+            window_size=self.params.model_spec.window_size,
         )
 
-    # export the models and errors
-    return models, val_errors
 
-
-if __name__ == "__main__":
-    df_train, df_test, df_features, df_stores = load_data()
-
-    models, val_errors = train()
-    # save errors
-
-    # get average error by store total volumne
-    mean_error = {
-        store: np.mean(
-            [val_errors[(store, dept)] for dept in df_train["dept"].unique()]
+class StatsFcBaselineSeasonalWindowAverage(StatsFcForecaster):
+    def __init__(self, params):
+        super().__init__(params)
+        self.model_spec = SeasonalWindowAverage(
+            season_length=self.params.model_spec.season_length,
+            window_size=self.params.model_spec.window_size,
         )
-        for store in df_train["store"].unique()
-    }
 
-    # get the store with the lowest error
 
-    # export model errors in csv file
+class StatsFcBaselineNaive(StatsFcForecaster):
+    def __init__(self, params):
+        super().__init__(params)
+        self.model_spec = Naive()
 
-    print(mean_error)
+
+class StatsFcBaselineSeasonalNaive(StatsFcForecaster):
+    def __init__(self, params):
+        super().__init__(params)
+        self.model_spec = SeasonalNaive(
+            season_length=self.params.model_spec.season_length,
+        )
+
+
+class StatsFcAutoArima(StatsFcForecaster):
+    def __init__(self, params):
+        super().__init__(params)
+        self.model_spec = AutoARIMA(
+            season_length=self.params.model_spec.season_length,
+            approximation=self.params.model_spec.approximation,
+        )
+
+
+class StatsFcAutoETS(StatsFcForecaster):
+    def __init__(self, params):
+        super().__init__(params)
+        self.model_spec = AutoETS(
+            season_length=self.params.model_spec.season_length,
+            model=self.params.model_spec.model,
+        )
+
+
+class StatsFcAutoCES(StatsFcForecaster):
+    def __init__(self, params):
+        super().__init__(params)
+        self.model_spec = AutoCES(
+            season_length=self.params.model_spec.season_length,
+            model=self.params.model_spec.model,
+        )
+
+
+class StatsFcAutoTheta(StatsFcForecaster):
+    def __init__(self, params):
+        super().__init__(params)
+        self.model_spec = AutoTheta(
+            season_length=self.params.model_spec.season_length,
+            decomposition_type=self.params.model_spec.decomposition_type,
+        )
+
+
+class StatsFcTSB(StatsFcForecaster):
+    def __init__(self, params):
+        super().__init__(params)
+        self.model_spec = TSB(
+            alpha_d=self.params.model_spec.alpha_d,
+            alpha_p=self.params.model_spec.alpha_p,
+        )
+
+
+class StatsFcADIDA(StatsFcForecaster):
+    def __init__(self, params):
+        super().__init__(params)
+        self.model_spec = ADIDA()
+
+
+class StatsFcIMAPA(StatsFcForecaster):
+    def __init__(self, params):
+        super().__init__(params)
+        self.model_spec = IMAPA()
+
+
+class StatsFcCrostonClassic(StatsFcForecaster):
+    def __init__(self, params):
+        super().__init__(params)
+        self.model_spec = CrostonClassic()
+
+
+class StatsFcCrostonOptimized(StatsFcForecaster):
+    def __init__(self, params):
+        super().__init__(params)
+        self.model_spec = CrostonOptimized()
+
+
+class StatsFcCrostonSBA(StatsFcForecaster):
+    def __init__(self, params):
+        super().__init__(params)
+        self.model_spec = CrostonSBA()
