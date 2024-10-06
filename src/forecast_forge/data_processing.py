@@ -146,6 +146,7 @@ def pre_process_data(
     df_train: pd.DataFrame,
     df_test: pd.DataFrame,
     df_features: pd.DataFrame,
+    df_stores: pd.DataFrame,
     target_column: str,
     date_column: str,
 ):
@@ -169,8 +170,7 @@ def pre_process_data(
     pre_processing_pipeline = build_preprocessing_pipeline()
     df_train = pre_processing_pipeline.fit_transform(df_train)
 
-    df_train.set_index(["store_dept", "date"], inplace=True)
-    df_test.set_index(["store_dept", "date"], inplace=True)
+    df_train.set_index(["group_id", "date"], inplace=True)
 
     return df_train, df_test
 
@@ -184,6 +184,7 @@ if __name__ == "__main__":
         df_train,
         df_test,
         df_features,
+        df_stores,
         target_column="weekly_sales",
         date_column="date",
     )
