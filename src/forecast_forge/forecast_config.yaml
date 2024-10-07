@@ -8,6 +8,10 @@ train_predict_ratio: 1
 
 accelerator: cpu
 
+group_col: group_id
+
+backtest_periods: 38
+
 static_features:
   #- State
 
