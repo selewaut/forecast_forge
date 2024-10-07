@@ -1,114 +1,74 @@
+import logging
 from typing import List
-
 import numpy as np
 import pandas as pd
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
+from sklearn import set_config  # To enable set_output
+
+# Enable pandas output for all transformers globally
+set_config(transform_output="pandas")
+
+# Setup logging
+logging.basicConfig(level=logging.INFO)
 
 
-def merge_features(
-    df_train: pd.DataFrame, df_features: pd.DataFrame, on: List[str]
+def merge_dataframes(
+    df_main: pd.DataFrame,
+    df_other: pd.DataFrame,
+    on: List[str],
+    merge_type: str = "left",
 ) -> pd.DataFrame:
-    """
-    df_train: pd.DataFrame - DataFrame with the target variable, can contain multiple time series.
-    df_features: pd.DataFrame - DataFrame with the features to merge with df_train.
-    """
-    return pd.merge(df_train, df_features, on=on, how="left")
-
-
-def merge_stores(
-    df_train: pd.DataFrame, df_stores: pd.DataFrame, on: List[str]
-) -> pd.DataFrame:
-    """
-    df_train: pd.DataFrame - DataFrame with the target variable, can contain multiple time series.
-    df_stores: pd.DataFrame - DataFrame with the store information to merge with df_train.
-    """
-    return pd.merge(df_train, df_stores, on=on, how="left")
+    try:
+        return pd.merge(df_main, df_other, on=on, how=merge_type)
+    except KeyError as e:
+        # logging.error(f"Error merging dataframes: {e}")
+        raise
 
 
 def negative_sales_to_zero(df: pd.DataFrame, target_col: str) -> pd.DataFrame:
-    """
-    df: pd.DataFrame - DataFrame with the target variable.
-    target_col: str - Name of the target column.
-    """
+    # logging.info(f"Setting negative values in {target_col} to zero")
     df[target_col] = df[target_col].apply(lambda x: x if x > 0 else 0)
     return df
 
 
-def null_imputation_zero(df: pd.DataFrame, cols: List[str]) -> pd.DataFrame:
-    """
-    cols: List[str] - List of columns to impute.
+def add_numeric_temperature_bins(df, temp_col="temperature") -> pd.DataFrame:
+    # logging.info(f"Creating temperature bins for column {temp_col}")
+    bins_fahrenheit = [-np.inf, 40, 55, 70, 85, 95, np.inf]
+    bin_labels_numeric = [0, 1, 2, 3, 4, 5]
 
-    """
-    for col in cols:
-        df[col] = df[col].fillna(0)
-    return df
-
-
-def add_numeric_temperature_bins(df, temp_col="temperature"):
-    """
-    Adds a 'Temp_Bin' column with numeric labels to the DataFrame based on temperature ranges in Fahrenheit.
-
-    Parameters:
-    df (pd.DataFrame): Input DataFrame with a column containing temperature values in Fahrenheit.
-    temp_col (str): The column name in the DataFrame that contains temperature values. Default is 'Avg_Temperature_F'.
-
-    Returns:
-    pd.DataFrame: DataFrame with an additional column 'Temp_Bin' categorizing temperature ranges numerically.
-    """
-    # Define temperature ranges in Fahrenheit
-    bins_fahrenheit = [-np.inf, 40, 55, 70, 85, 95, np.inf]  # Temperature ranges
-
-    # Numeric labels for each bin (e.g., 0 = Very Cold, 1 = Cold, etc.)
-    bin_labels_numeric = [0, 1, 2, 3, 4, 5]  # Numeric labels for each bin
-
-    # Ensure the temperature column exists in the DataFrame
     if temp_col not in df.columns:
-        raise ValueError(f"'{temp_col}' column not found in the DataFrame")
+        # logging.error(f"'{temp_col}' column not found in the DataFrame")
+        raise ValueError(f"'{temp_col}' column not found")
 
-    # Apply the temperature binning with numeric labels
     df["temp_bin"] = pd.cut(
         df[temp_col], bins=bins_fahrenheit, labels=bin_labels_numeric
     )
-    # drop the original temperature column
     df = df.drop(columns=[temp_col])
     return df
 
 
-def generate_week_feature(df, date_col="date"):
-    """
-    Generates a 'Week' feature from the date column in the DataFrame.
-
-    Parameters:
-    df (pd.DataFrame): Input DataFrame containing a date column.
-    date_col (str): The name of the date column in the DataFrame. Default is 'Date'.
-
-    Returns:
-    pd.DataFrame: DataFrame with an additional 'Week' feature extracted from the date column.
-    """
-    # Ensure the date column exists in the DataFrame
+def generate_week_feature(df: pd.DataFrame, date_col: str = "date") -> pd.DataFrame:
+    logging.info(f"Generating week feature from {date_col}")
     if date_col not in df.columns:
+        logging.error(f"'{date_col}' column not found in the DataFrame")
         raise ValueError(f"'{date_col}' column not found in the DataFrame")
 
-    # Convert the date column to datetime format
     df[date_col] = pd.to_datetime(df[date_col])
-
-    # Extract the week number from the date column
     df["Week"] = df[date_col].dt.isocalendar().week
-
     return df
 
 
-def build_preprocessing_pipeline():
-    """
-    Build a preprocessing pipeline using ColumnTransformer from scikit-learn.
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+from sklearn.impute import SimpleImputer
+import logging
+import pandas as pd
 
-    Returns:
-    ColumnTransformer: Preprocessing pipeline for feature transformation.
-    """
-    # Define numerical and categorical features
-    numeric_features = ["cpi", "unemployment"]
+
+def build_preprocessing_pipeline(group_columns: List[str]) -> ColumnTransformer:
+    logging.info("Building the preprocessing pipeline")
 
     markdown_features = [
         "markdown1",
@@ -118,26 +78,23 @@ def build_preprocessing_pipeline():
         "markdown5",
     ]
 
-    mean_imputer = Pipeline(
-        steps=[
-            ("imputer", SimpleImputer(strategy="mean")),
-        ]
-    )
-
+    mean_imputer = Pipeline(steps=[("imputer", SimpleImputer(strategy="mean"))])
     markdown_imputer = Pipeline(
-        steps=[
-            ("imputer", SimpleImputer(strategy="constant", fill_value=0)),
-        ]
+        steps=[("imputer", SimpleImputer(strategy="constant", fill_value=0))]
     )
 
-    # apply both imputers to the respective columns
-
+    # Include group_columns explicitly in passthrough
     preprocessor = ColumnTransformer(
         transformers=[
             # ("num", mean_imputer, numeric_features),
             ("markdown", markdown_imputer, markdown_features),
-        ]
+        ],
+        remainder="passthrough",  # Ensure the group_columns are passed through unchanged
+        verbose_feature_names_out=False,  # Use original column names in output
     )
+
+    # Ensure the pipeline returns a DataFrame with column names
+    preprocessor.set_output(transform="pandas")
 
     return preprocessor
 
@@ -149,42 +106,84 @@ def pre_process_data(
     df_stores: pd.DataFrame,
     target_column: str,
     date_column: str,
-):
+    group_columns: List[str],
+) -> (pd.DataFrame, pd.DataFrame):
+    """
+    Preprocess train and test data.
 
-    # merge features
-    df_train = merge_features(df_train, df_features, on=["date", "store", "isholiday"])
-    df_train = merge_stores(df_train, df_stores, on=["store"])
+    df_train: pd.DataFrame - Training DataFrame.
+    df_test: pd.DataFrame - Test DataFrame.
+    df_features: pd.DataFrame - DataFrame with additional features.
+    df_stores: pd.DataFrame - DataFrame with store details.
+    target_column: str - Target column name.
+    date_column: str - Date column name.
+    group_columns: List[str] - Columns to be used for grouping (e.g., 'group_id', 'date').
 
-    df_test = merge_features(df_test, df_features, on=["date", "store", "isholiday"])
-    df_test = merge_stores(df_test, df_stores, on=["store"])
+    Returns:
+    Tuple: Processed training and test DataFrames.
+    """
 
-    # generate week feature
+    logging.info("Starting data preprocessing")
+
+    # Merge features and stores
+    df_train = merge_dataframes(
+        df_train, df_features, on=["date", "store", "isholiday"]
+    )
+    df_train = merge_dataframes(df_train, df_stores, on=["store"])
+
+    df_test = merge_dataframes(df_test, df_features, on=["date", "store", "isholiday"])
+    df_test = merge_dataframes(df_test, df_stores, on=["store"])
+
+    # Generate week feature
     df_train = generate_week_feature(df_train, date_col=date_column)
     df_test = generate_week_feature(df_test, date_col=date_column)
 
-    # general imputting.
+    # Handle negative sales
     df_train = negative_sales_to_zero(df_train, target_column)
+
+    # Add temperature bins
     df_train = add_numeric_temperature_bins(df_train)
 
-    # pre-processing pipeline
-    pre_processing_pipeline = build_preprocessing_pipeline()
-    df_train = pre_processing_pipeline.fit_transform(df_train)
+    # Preprocessing pipeline - group_columns passed to be retained
+    pre_processing_pipeline = build_preprocessing_pipeline(group_columns)
 
-    df_train.set_index(["group_id", "date"], inplace=True)
+    # Apply the transformation using the new set_output
+    df_train_transformed = pre_processing_pipeline.fit_transform(df_train)
 
-    return df_train, df_test
+    # Log the columns of the transformed DataFrame to debug
+    logging.info(f"Transformed columns: {df_train_transformed.columns}")
+
+    # Check if group_columns exist after transformation
+    missing_columns = [
+        col for col in group_columns if col not in df_train_transformed.columns
+    ]
+    if missing_columns:
+        raise KeyError(
+            f"The following group columns are missing after transformation: {missing_columns}"
+        )
+
+    # Ensure group_columns are present in transformed DataFrame
+    df_train_transformed.set_index(group_columns, inplace=True)
+
+    logging.info("Data preprocessing completed")
+    return df_train_transformed, df_test
 
 
 if __name__ == "__main__":
     from forecast_forge.data_loader import load_data
 
+    # Load data
     df_train, df_test, df_features, df_stores = load_data()
 
-    df_train = pre_process_data(
+    # Preprocess data
+    df_train_transformed, df_test = pre_process_data(
         df_train,
         df_test,
         df_features,
         df_stores,
         target_column="weekly_sales",
         date_column="date",
+        group_columns=["group_id", "date"],
     )
+
+    print("finished")
