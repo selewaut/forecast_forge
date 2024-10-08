@@ -1,5 +1,5 @@
 import logging
-from typing import List
+from typing import List, Tuple
 import numpy as np
 import pandas as pd
 from sklearn.compose import ColumnTransformer
@@ -107,7 +107,7 @@ def pre_process_data(
     target_column: str,
     date_column: str,
     group_columns: List[str],
-) -> (pd.DataFrame, pd.DataFrame):
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
     Preprocess train and test data.
 
