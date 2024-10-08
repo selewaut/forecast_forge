@@ -6,7 +6,7 @@ promoted_props:
   - metric
   - freq
   - accelerator
-  - backtest_months
+  - backtest_periods
   - stride
   - static_features
   - dynamic_future
