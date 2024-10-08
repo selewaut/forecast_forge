@@ -65,18 +65,19 @@ class Forecaster:
                 return df_val
             else:
                 df_val = self.load_data()
+                return df_val
 
     def split_df_train_val(self, df: pd.DataFrame):
         train_df = df[
             df[self.conf["date_col"]]
             <= df[self.conf["date_col"]].max()
-            - pd.DateOffset(weeks=self.conf["backtest_weeks"])
+            - pd.DateOffset(weeks=self.conf["backtest_periods"])
         ]
         # Validate with data after the backtest months cutoff...
         val_df = df[
             df[self.conf["date_col"]]
             > df[self.conf["date_col"]].max()
-            - pd.DateOffset(weeks=self.conf["backtest_weeks"])
+            - pd.DateOffset(weeks=self.conf["backtest_periods"])
         ]
         return train_df, val_df
 
@@ -92,10 +93,11 @@ class Forecaster:
             model (ForecastingRegressor): A ForecastingRegressor object.
         Returns: metrics_df (pd.DataFrame): A pandas DataFrame.
         """
+        pdf.reset_index(drop=False, inplace=True)
         pdf[model.params["date_col"]] = pd.to_datetime(pdf[model.params["date_col"]])
         pdf.sort_values(by=model.params["date_col"], inplace=True)
         split_date = pdf[model.params["date_col"]].max() - pd.DateOffset(
-            months=model.params["backtest_weeks"]
+            weeks=model.params["backtest_periods"]
         )
         group_id = pdf[model.params["group_id"]].iloc[0]
         try:
@@ -138,12 +140,20 @@ class Forecaster:
             df_features,
             df_stores,
             target_column=self.conf.get("target"),
+            group_columns=[self.conf.get("group_id"), self.conf.get("date_col")],
             date_column=self.conf.get("date_col"),
         )
-        # filter onyly 10 combinations to test the code
-        combinations_10 = df_train["group_id"].unique()[:10]
-        df_train = df_train[df_train["group_id"].isin(combinations_10)]
-        df_test = df_test[df_test["group_id"].isin(combinations_10)]
+        # filter onyly 10 combinations time series to test the code
+        # get the unique group_id from index (group_id, date)
+
+        combinations = df_train.index.get_level_values(0).unique()[:10]
+
+        df_train = df_train.loc[combinations]
+
+        # count combinations in df_train
+        print(
+            f"Number of combinations in df_train: {df_train.index.get_level_values(0).nunique()}"
+        )
 
         return df_train
 
@@ -235,13 +245,14 @@ class Forecaster:
             model = self.model_registry.get_model(model_conf["name"])
 
             combinations_results = []
-            for group_id in src_df["group_id"].unique():
-                pdf = src_df[src_df["group_id"] == group_id]
+            for group_id in src_df.index.get_level_values(0).unique():
+                pdf = src_df.loc[group_id]
                 res_df = self.evaluate_one_local_model(pdf, model)
                 res_df["run_id"] = self.run_id
                 res_df["model_name"] = model_conf["name"]
                 res_df["model_conf"] = model_conf
                 res_df["run_date"] = self.run_date
+                res_df["group_id"] = group_id
                 mlflow.log_df(res_df, f"{model_conf['name']}_results")
 
                 combinations_results.append(res_df)
