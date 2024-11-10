@@ -64,19 +64,19 @@ class ForecastingRegressor(BaseEstimator, RegressorMixin):
         if stride is None:
             stride = self.params["prediction_length"]
 
-            # stride_offset =
-            if self.freq == "W":
-                stride_offset = pd.offsets.DateOffset(weeks=stride)
-            elif self.freq == "D":
-                stride_offset = pd.offsets.DateOffset(days=stride)
-            elif self.freq == "M":
-                stride_offset = pd.offsets.DateOffset(months=stride)
-            else:
-                raise ValueError("Invalid frequency")
+        # stride_offset =
+        if self.freq == "W":
+            stride_offset = pd.offsets.DateOffset(weeks=stride)
+        elif self.freq == "D":
+            stride_offset = pd.offsets.DateOffset(days=stride)
+        elif self.freq == "M":
+            stride_offset = pd.offsets.DateOffset(months=stride)
+        else:
+            raise ValueError("Invalid frequency")
 
-            df = df.copy().sort_values(by=[self.params["date_col"]])
-            end_date = df[self.params["date_col"]].max()
-            curr_date = start + self.one_ts_offset
+        df = df.copy().sort_values(by=[self.params["date_col"]])
+        end_date = df[self.params["date_col"]].max()
+        curr_date = start + self.one_ts_offset
 
         results = []
 
@@ -112,13 +112,13 @@ class ForecastingRegressor(BaseEstimator, RegressorMixin):
             elif isinstance(metrics, list):
                 results.extend(metrics)
 
-            curr_date = +stride_offset
+            curr_date += stride_offset
 
         res_df = pd.DataFrame(
             results,
             columns=[
-                "group_id",
-                "date",
+                self.params["group_id"],
+                "backtest_window_start_date",
                 "metric_name",
                 "metric_value",
                 "forecast",

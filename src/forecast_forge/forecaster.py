@@ -93,7 +93,8 @@ class Forecaster:
             model (ForecastingRegressor): A ForecastingRegressor object.
         Returns: metrics_df (pd.DataFrame): A pandas DataFrame.
         """
-        pdf.reset_index(drop=False, inplace=True)
+        pdf = pdf.copy()
+        pdf.reset_index(drop=True, inplace=True)
         pdf[model.params["date_col"]] = pd.to_datetime(pdf[model.params["date_col"]])
         pdf.sort_values(by=model.params["date_col"], inplace=True)
         split_date = pdf[model.params["date_col"]].max() - pd.DateOffset(
@@ -104,7 +105,12 @@ class Forecaster:
             pdf = pdf.fillna(0)
             # Fix here
             pdf[model.params["target"]] = pdf[model.params["target"]].clip(0)
-            metrics_df = model.backtest(pdf, start=split_date, group_id=group_id)
+            metrics_df = model.backtest(
+                pdf,
+                start=split_date,
+                group_id=group_id,
+                stride=model.params["stride"],
+            )
             return metrics_df
         except Exception:
             return pd.DataFrame(
@@ -155,7 +161,7 @@ class Forecaster:
             f"Number of combinations in df_train: {df_train.index.get_level_values(0).nunique()}"
         )
 
-        return df_train
+        return df_train.reset_index()
 
     @staticmethod
     def score_one_local_model(
@@ -245,26 +251,29 @@ class Forecaster:
             model = self.model_registry.get_model(model_conf["name"])
 
             combinations_results = []
-            for group_id in src_df.index.get_level_values(0).unique():
-                pdf = src_df.loc[group_id]
+            for group_id in src_df[model_conf["group_id"]].unique():
+                # filter data for each group_id column
+                pdf = src_df.loc[src_df[model_conf["group_id"]] == group_id]
                 res_df = self.evaluate_one_local_model(pdf, model)
                 res_df["run_id"] = self.run_id
                 res_df["model_name"] = model_conf["name"]
                 res_df["model_conf"] = model_conf
                 res_df["run_date"] = self.run_date
                 res_df["group_id"] = group_id
-                mlflow.log_df(res_df, f"{model_conf['name']}_results")
+                # mlflow.log_artifact(res_df, f"{model_conf['name']}_results")
 
                 combinations_results.append(res_df)
 
             all_results = pd.concat(combinations_results)
 
             # save all results
-            all_results.to_csv(
-                f"results/{model_conf['name']}_all_results.csv", index=False
-            )
+            # all_results.to_csv(
+            #     f"results/{model_conf['name']}_all_results.csv", index=False
+            # )
 
             # compute aggregated metrics
             agg_metrics = all_results.groupby("metric_name")["metric_value"].mean()
 
             # log aggregated metrics
+            for metric_name, metric_value in agg_metrics.items():
+                mlflow.log_metric(metric_name, metric_value)
