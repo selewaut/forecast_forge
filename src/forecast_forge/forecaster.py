@@ -266,6 +266,13 @@ class Forecaster:
 
             all_results = pd.concat(combinations_results)
 
+            #
+            all_results["run_id"] = self.run_id
+            all_results["run_date"] = self.run_date
+            all_results["model"] = model_conf["name"]
+            all_results["use_case"] = self.conf["use_case_name"]
+            all_results["model_uri"] = ""
+
             # save all results
             # all_results.to_csv(
             #     f"results/{model_conf['name']}_all_results.csv", index=False
