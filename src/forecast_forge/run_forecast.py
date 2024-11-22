@@ -114,3 +114,4 @@ def run_forecast(
     )
 
     run_id = f.evaluate_score(evaluate=run_evaluation, score=run_scoring)
+    return run_id  # Ensure this line is present
