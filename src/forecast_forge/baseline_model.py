@@ -1,6 +1,3 @@
-# arima models
-
-
 from typing import List
 
 import numpy as np
@@ -45,7 +42,7 @@ class StatsFcForecaster(ForecastingRegressor):
         if not future:
             # Prepare historical dataframe with/out exogenous regressors for training
             # Fix here
-            df[self.params.target] = df[self.params.target].clip(0)
+            df.loc[:, self.params.target] = df[self.params.target].clip(0)
             if "dynamic_future" in self.params.keys():
                 try:
                     df_statsfc = df[

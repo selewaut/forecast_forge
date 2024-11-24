@@ -2,13 +2,16 @@ import mlflow
 from mlflow.tracking import MlflowClient
 import scipy as sp
 from forecast_forge.run_forecast import run_forecast
+import os
 
+
+os.environ["NIXTLA_ID_AS_COL"] = "1"
 active_models = [
     "StatsForecastBaselineWindowAverage",
-    # "StatsForecastBaselineSeasonalWindowAverage",
-    # "StatsForecastBaselineNaive",
-    # "StatsForecastBaselineSeasonalNaive",
-    #    "StatsForecastAutoArima",
+    "StatsForecastBaselineSeasonalWindowAverage",
+    "StatsForecastBaselineNaive",
+    "StatsForecastBaselineSeasonalNaive",
+    "StatsForecastAutoArima",
     # "StatsForecastAutoETS",
     # "StatsForecastAutoCES",
     # "StatsForecastAutoTheta",
@@ -39,7 +42,7 @@ run_forecast(
     freq="W",
     prediction_length=12,
     backtest_periods=12,
-    stride=12,
+    stride=3,
     metric="smape",
     train_predict_ratio=1,
     resample=False,

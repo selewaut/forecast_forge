@@ -196,7 +196,7 @@ class Forecaster:
         # filter onyly 10 combinations time series to test the code
         # get the unique group_id from index (group_id, date)
 
-        combinations = df_train.index.get_level_values(0).unique()[:10]
+        combinations = df_train.index.get_level_values(0).unique()
 
         df_train = df_train.loc[combinations]
 
@@ -322,10 +322,15 @@ class Forecaster:
             # res_df = res_df[res_df[self.conf["group_id"]] == "1_1"]
 
             # res_df = evaluate_one_local_model_fn(res_df)
+            n_tasks = src_df.select(self.conf["group_id"]).distinct().count()
 
-            res_sdf = src_df.groupby(self.conf["group_id"]).applyInPandas(
-                evaluate_one_local_model_fn, schema=output_schema
-            )
+            res_sdf = (
+                src_df.repartition(n_tasks)
+                .groupby(self.conf["group_id"])
+                .applyInPandas(evaluate_one_local_model_fn, schema=output_schema)
+            ).cache()
+
+            # get total combinations in res_sdf
 
             if self.conf.get("evaluation_output", None) is not None:
                 (
@@ -338,7 +343,7 @@ class Forecaster:
                     .withColumn("model", lit(model_conf["name"]))
                     .withColumn("use_case", lit(self.conf["use_case_name"]))
                     .withColumn("model_uri", lit(""))
-                    .write.mode("overwrite")
+                    .write.mode("append")
                     # save as parquet]
                     .parquet(self.conf["evaluation_output"])
                 )
@@ -349,8 +354,6 @@ class Forecaster:
                 .withColumnRenamed("avg(metric_value)", "metric_value")
                 .toPandas()
             )
-            # Print out aggregated metrics
-            print(res_df)
 
             # Log aggregated metrics to MLflow
             for rec in res_df.values:
