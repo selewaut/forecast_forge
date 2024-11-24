@@ -5,8 +5,6 @@ from typing import List
 
 import numpy as np
 import pandas as pd
-from ray.util.multiprocessing import Pool
-from sklearn.metrics import mean_squared_error
 from sktime.forecasting.arima import AutoARIMA
 
 from forecast_forge.abstract_model import ForecastingRegressor

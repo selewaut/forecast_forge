@@ -6,7 +6,6 @@ import uuid
 import cloudpickle
 import mlflow
 import pandas as pd
-from polars import date
 import yaml
 from mlflow.tracking import MlflowClient
 from omegaconf import OmegaConf
@@ -104,11 +103,13 @@ class Forecaster:
         if self.data_conf:
             df_val = self.data_conf.get(key)
             if df_val is not None and isinstance(df_val, pd.DataFrame):
-                self.spark.createDataFrame(df_val)
+                return self.spark.createDataFrame(df_val)
+            elif df_val is not None and isinstance(df_val, DataFrame):
                 return df_val
             else:
                 df_val = self.load_data()
-                return df_val
+                # convert to spark dataframe
+                return self.spark.createDataFrame(df_val)
 
     def split_df_train_val(self, df: pd.DataFrame):
         train_df = df[
@@ -292,7 +293,6 @@ class Forecaster:
             src_df = self.resolve_source("train_data")
 
             # create spark dataframe
-            spark = SparkSession.builder.appName("forecast_forge").getOrCreate()
 
             model = self.model_registry.get_model(model_conf["name"])
             output_schema = StructType(
@@ -306,37 +306,45 @@ class Forecaster:
                     StructField("model_pickle", BinaryType()),
                 ]
             )
-            combinations_results = []
-            for group_id in src_df[model_conf["group_id"]].unique():
-                # filter data for each group_id column
-                pdf = src_df.loc[src_df[model_conf["group_id"]] == group_id]
-                res_df = self.evaluate_one_local_model(pdf, model)
-                res_df["run_id"] = self.run_id
-                res_df["model_name"] = model_conf["name"]
-                res_df["model_conf"] = model_conf
-                res_df["run_date"] = self.run_date
-                res_df["group_id"] = group_id
-                # mlflow.log_artifact(res_df, f"{model_conf['name']}_results")
 
-                combinations_results.append(res_df)
+            # Use Pandas UDF to forecast individual group
+            evaluate_one_local_model_fn = functools.partial(
+                Forecaster.evaluate_one_local_model, model=model
+            )
 
-            all_results = pd.concat(combinations_results)
+            res_sdf = src_df.groupby(self.conf["group_id"]).applyInPandas(
+                evaluate_one_local_model_fn, schema=output_schema
+            )
 
-            #
-            all_results["run_id"] = self.run_id
-            all_results["run_date"] = self.run_date
-            all_results["model"] = model_conf["name"]
-            all_results["use_case"] = self.conf["use_case_name"]
-            all_results["model_uri"] = ""
+            if self.conf.get("evaluation_output", None) is not None:
+                (
+                    res_sdf.withColumn(
+                        self.conf["group_id"],
+                        col(self.conf["group_id"]).cast(StringType()),
+                    )
+                    .withColumn("run_id", lit(self.run_id))
+                    .withColumn("run_date", lit(self.run_date))
+                    .withColumn("model", lit(model_conf["name"]))
+                    .withColumn("use_case", lit(self.conf["use_case_name"]))
+                    .withColumn("model_uri", lit(""))
+                    .write.mode("overwrite")
+                    # save as parquet]
+                    .parquet(self.conf["evaluation_output"])
+                )
 
-            # save all results
-            # all_results.to_csv(
-            #     f"results/{model_conf['name']}_all_results.csv", index=False
-            # )
+            # Compute aggregated metrics
+            res_df = (
+                res_sdf.groupby(["metric_name"])
+                .mean("metric_value")
+                .withColumnRenamed("avg(metric_value)", "metric_value")
+                .toPandas()
+            )
+            # Print out aggregated metrics
+            print(res_df)
 
-            # compute aggregated metrics
-            agg_metrics = all_results.groupby("metric_name")["metric_value"].mean()
-
-            # log aggregated metrics
-            for metric_name, metric_value in agg_metrics.items():
+            # Log aggregated metrics to MLflow
+            for rec in res_df.values:
+                metric_name, metric_value = rec
                 mlflow.log_metric(metric_name, metric_value)
+                mlflow.set_tag("model_name", model_conf["name"])
+                mlflow.set_tag("run_id", self.run_id)
