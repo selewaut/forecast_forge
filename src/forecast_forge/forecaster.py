@@ -301,8 +301,11 @@ class Forecaster:
                         self.conf["group_id"],
                         src_df.schema[self.conf["group_id"]].dataType,
                     ),
-                    StructField(self.conf["date_col"], ArrayType(TimestampType())),
-                    StructField(self.conf["target"], ArrayType(DoubleType())),
+                    StructField("backtest_window_start_date", DateType()),
+                    StructField("metric_name", StringType()),
+                    StructField("metric_value", DoubleType()),
+                    StructField("forecast", ArrayType(DoubleType())),
+                    StructField("actual", ArrayType(DoubleType())),
                     StructField("model_pickle", BinaryType()),
                 ]
             )
@@ -311,6 +314,14 @@ class Forecaster:
             evaluate_one_local_model_fn = functools.partial(
                 Forecaster.evaluate_one_local_model, model=model
             )
+
+            # # convert to pandas dataframe
+            # res_df = src_df.toPandas()
+
+            # # extract only 1 combination'
+            # res_df = res_df[res_df[self.conf["group_id"]] == "1_1"]
+
+            # res_df = evaluate_one_local_model_fn(res_df)
 
             res_sdf = src_df.groupby(self.conf["group_id"]).applyInPandas(
                 evaluate_one_local_model_fn, schema=output_schema
@@ -331,7 +342,6 @@ class Forecaster:
                     # save as parquet]
                     .parquet(self.conf["evaluation_output"])
                 )
-
             # Compute aggregated metrics
             res_df = (
                 res_sdf.groupby(["metric_name"])

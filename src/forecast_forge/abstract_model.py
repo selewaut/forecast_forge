@@ -9,6 +9,7 @@ from sktime.performance_metrics.forecasting import (
     MeanSquaredError,
     MeanAbsolutePercentageError,
 )
+import cloudpickle
 
 
 class ForecastingRegressor(BaseEstimator, RegressorMixin):
@@ -97,7 +98,7 @@ class ForecastingRegressor(BaseEstimator, RegressorMixin):
                 )
             ]
 
-            metrics = self.calculate_metrics(_df, actuals_df, curr_date)
+            metrics = self.calculate_metrics(_df, actuals_df, curr_date, spark)
 
             if isinstance(metrics, dict):
                 evaluation_results = [
@@ -175,5 +176,5 @@ class ForecastingRegressor(BaseEstimator, RegressorMixin):
             "metric_value": metric_value,
             "forecast": pred_df[self.params["target"]].to_numpy("float"),
             "actual": val_df[self.params["target"]].to_numpy(),
-            "model_pickle": model_fitted,
+            "model_pickle": cloudpickle.dumps(model_fitted),
         }

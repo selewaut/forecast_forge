@@ -32,6 +32,7 @@ spark = SparkSession.builder.appName("forecast").getOrCreate()
 run_forecast(
     spark=spark,
     train_data="train_data",
+    evaluation_output="weekly_evaluation_output",
     group_id="group_id",
     date_col="date",
     target="weekly_sales",
