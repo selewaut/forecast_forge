@@ -6,10 +6,51 @@ import uuid
 import cloudpickle
 import mlflow
 import pandas as pd
+from polars import date
 import yaml
 from mlflow.tracking import MlflowClient
 from omegaconf import OmegaConf
 from omegaconf.basecontainer import BaseContainer
+
+import os
+import functools
+import logging
+import pathlib
+import uuid
+import yaml
+from typing import Dict, Any, Tuple, Union
+import pandas as pd
+import numpy as np
+import cloudpickle
+import mlflow
+from mlflow.tracking import MlflowClient
+from mlflow.models import ModelSignature, infer_signature
+from mlflow.types.schema import Schema, ColSpec
+from omegaconf import OmegaConf
+from omegaconf.basecontainer import BaseContainer
+from pyspark.sql import SparkSession, DataFrame
+from pyspark.sql.types import (
+    StructType,
+    StructField,
+    StringType,
+    DateType,
+    DoubleType,
+    TimestampType,
+    BinaryType,
+    ArrayType,
+    IntegerType,
+)
+from pyspark.sql.functions import (
+    lit,
+    avg,
+    min,
+    max,
+    col,
+    posexplode,
+    collect_list,
+    to_date,
+    countDistinct,
+)
 
 from forecast_forge.abstract_model import ForecastingRegressor
 from forecast_forge.data_loader import load_data
@@ -18,7 +59,7 @@ from forecast_forge.model_registry import ModelRegistry
 
 
 class Forecaster:
-    def __init__(self, conf, data_conf, experiment_id=None, run_id=None):
+    def __init__(self, conf, data_conf, experiment_id=None, run_id=None, spark=None):
 
         if isinstance(conf, BaseContainer):
             self.conf = conf
@@ -37,6 +78,7 @@ class Forecaster:
 
         self.data_conf = data_conf
         self.model_registry = ModelRegistry(self.conf)
+        self.spark = spark
 
         if experiment_id:
             self.experiment_id = experiment_id
@@ -62,6 +104,7 @@ class Forecaster:
         if self.data_conf:
             df_val = self.data_conf.get(key)
             if df_val is not None and isinstance(df_val, pd.DataFrame):
+                self.spark.createDataFrame(df_val)
                 return df_val
             else:
                 df_val = self.load_data()
@@ -248,8 +291,21 @@ class Forecaster:
         with mlflow.start_run(experiment_id=self.experiment_id):
             src_df = self.resolve_source("train_data")
 
-            model = self.model_registry.get_model(model_conf["name"])
+            # create spark dataframe
+            spark = SparkSession.builder.appName("forecast_forge").getOrCreate()
 
+            model = self.model_registry.get_model(model_conf["name"])
+            output_schema = StructType(
+                [
+                    StructField(
+                        self.conf["group_id"],
+                        src_df.schema[self.conf["group_id"]].dataType,
+                    ),
+                    StructField(self.conf["date_col"], ArrayType(TimestampType())),
+                    StructField(self.conf["target"], ArrayType(DoubleType())),
+                    StructField("model_pickle", BinaryType()),
+                ]
+            )
             combinations_results = []
             for group_id in src_df[model_conf["group_id"]].unique():
                 # filter data for each group_id column
