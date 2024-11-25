@@ -11,6 +11,46 @@ from mlflow.tracking import MlflowClient
 from omegaconf import OmegaConf
 from omegaconf.basecontainer import BaseContainer
 
+import os
+import functools
+import logging
+import pathlib
+import uuid
+import yaml
+from typing import Dict, Any, Tuple, Union
+import pandas as pd
+import numpy as np
+import cloudpickle
+import mlflow
+from mlflow.tracking import MlflowClient
+from mlflow.models import ModelSignature, infer_signature
+from mlflow.types.schema import Schema, ColSpec
+from omegaconf import OmegaConf
+from omegaconf.basecontainer import BaseContainer
+from pyspark.sql import SparkSession, DataFrame
+from pyspark.sql.types import (
+    StructType,
+    StructField,
+    StringType,
+    DateType,
+    DoubleType,
+    TimestampType,
+    BinaryType,
+    ArrayType,
+    IntegerType,
+)
+from pyspark.sql.functions import (
+    lit,
+    avg,
+    min,
+    max,
+    col,
+    posexplode,
+    collect_list,
+    to_date,
+    countDistinct,
+)
+
 from forecast_forge.abstract_model import ForecastingRegressor
 from forecast_forge.data_loader import load_data
 from forecast_forge.data_processing import pre_process_data
@@ -18,7 +58,7 @@ from forecast_forge.model_registry import ModelRegistry
 
 
 class Forecaster:
-    def __init__(self, conf, data_conf, experiment_id=None, run_id=None):
+    def __init__(self, conf, data_conf, experiment_id=None, run_id=None, spark=None):
 
         if isinstance(conf, BaseContainer):
             self.conf = conf
@@ -37,6 +77,7 @@ class Forecaster:
 
         self.data_conf = data_conf
         self.model_registry = ModelRegistry(self.conf)
+        self.spark = spark
 
         if experiment_id:
             self.experiment_id = experiment_id
@@ -62,10 +103,13 @@ class Forecaster:
         if self.data_conf:
             df_val = self.data_conf.get(key)
             if df_val is not None and isinstance(df_val, pd.DataFrame):
+                return self.spark.createDataFrame(df_val)
+            elif df_val is not None and isinstance(df_val, DataFrame):
                 return df_val
             else:
                 df_val = self.load_data()
-                return df_val
+                # convert to spark dataframe
+                return self.spark.createDataFrame(df_val)
 
     def split_df_train_val(self, df: pd.DataFrame):
         train_df = df[
@@ -152,7 +196,7 @@ class Forecaster:
         # filter onyly 10 combinations time series to test the code
         # get the unique group_id from index (group_id, date)
 
-        combinations = df_train.index.get_level_values(0).unique()[:10]
+        combinations = df_train.index.get_level_values(0).unique()
 
         df_train = df_train.loc[combinations]
 
@@ -248,39 +292,72 @@ class Forecaster:
         with mlflow.start_run(experiment_id=self.experiment_id):
             src_df = self.resolve_source("train_data")
 
+            # create spark dataframe
+
             model = self.model_registry.get_model(model_conf["name"])
+            output_schema = StructType(
+                [
+                    StructField(
+                        self.conf["group_id"],
+                        src_df.schema[self.conf["group_id"]].dataType,
+                    ),
+                    StructField("backtest_window_start_date", DateType()),
+                    StructField("metric_name", StringType()),
+                    StructField("metric_value", DoubleType()),
+                    StructField("forecast", ArrayType(DoubleType())),
+                    StructField("actual", ArrayType(DoubleType())),
+                    StructField("model_pickle", BinaryType()),
+                ]
+            )
 
-            combinations_results = []
-            for group_id in src_df[model_conf["group_id"]].unique():
-                # filter data for each group_id column
-                pdf = src_df.loc[src_df[model_conf["group_id"]] == group_id]
-                res_df = self.evaluate_one_local_model(pdf, model)
-                res_df["run_id"] = self.run_id
-                res_df["model_name"] = model_conf["name"]
-                res_df["model_conf"] = model_conf
-                res_df["run_date"] = self.run_date
-                res_df["group_id"] = group_id
-                # mlflow.log_artifact(res_df, f"{model_conf['name']}_results")
+            # Use Pandas UDF to forecast individual group
+            evaluate_one_local_model_fn = functools.partial(
+                Forecaster.evaluate_one_local_model, model=model
+            )
 
-                combinations_results.append(res_df)
+            # # convert to pandas dataframe
+            # res_df = src_df.toPandas()
 
-            all_results = pd.concat(combinations_results)
+            # # extract only 1 combination'
+            # res_df = res_df[res_df[self.conf["group_id"]] == "1_1"]
 
-            #
-            all_results["run_id"] = self.run_id
-            all_results["run_date"] = self.run_date
-            all_results["model"] = model_conf["name"]
-            all_results["use_case"] = self.conf["use_case_name"]
-            all_results["model_uri"] = ""
+            # res_df = evaluate_one_local_model_fn(res_df)
+            n_tasks = src_df.select(self.conf["group_id"]).distinct().count()
 
-            # save all results
-            # all_results.to_csv(
-            #     f"results/{model_conf['name']}_all_results.csv", index=False
-            # )
+            res_sdf = (
+                src_df.repartition(n_tasks)
+                .groupby(self.conf["group_id"])
+                .applyInPandas(evaluate_one_local_model_fn, schema=output_schema)
+            ).cache()
 
-            # compute aggregated metrics
-            agg_metrics = all_results.groupby("metric_name")["metric_value"].mean()
+            # get total combinations in res_sdf
 
-            # log aggregated metrics
-            for metric_name, metric_value in agg_metrics.items():
+            if self.conf.get("evaluation_output", None) is not None:
+                (
+                    res_sdf.withColumn(
+                        self.conf["group_id"],
+                        col(self.conf["group_id"]).cast(StringType()),
+                    )
+                    .withColumn("run_id", lit(self.run_id))
+                    .withColumn("run_date", lit(self.run_date))
+                    .withColumn("model", lit(model_conf["name"]))
+                    .withColumn("use_case", lit(self.conf["use_case_name"]))
+                    .withColumn("model_uri", lit(""))
+                    .write.mode("append")
+                    # save as parquet]
+                    .parquet(self.conf["evaluation_output"])
+                )
+            # Compute aggregated metrics
+            res_df = (
+                res_sdf.groupby(["metric_name"])
+                .mean("metric_value")
+                .withColumnRenamed("avg(metric_value)", "metric_value")
+                .toPandas()
+            )
+
+            # Log aggregated metrics to MLflow
+            for rec in res_df.values:
+                metric_name, metric_value = rec
                 mlflow.log_metric(metric_name, metric_value)
+                mlflow.set_tag("model_name", model_conf["name"])
+                mlflow.set_tag("run_id", self.run_id)

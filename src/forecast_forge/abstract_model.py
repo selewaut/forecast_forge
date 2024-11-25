@@ -9,6 +9,7 @@ from sktime.performance_metrics.forecasting import (
     MeanSquaredError,
     MeanAbsolutePercentageError,
 )
+import cloudpickle
 
 
 class ForecastingRegressor(BaseEstimator, RegressorMixin):
@@ -42,12 +43,17 @@ class ForecastingRegressor(BaseEstimator, RegressorMixin):
     def predict(self, X):
         pass
 
+    @abstractmethod
+    def forecast(self, x, spark=None):
+        pass
+
     def backtest(
         self,
         df: pd.DataFrame,
         start: pd.Timestamp,
         group_id: Union[str, int],
         stride: int = None,
+        spark=None,
     ):
         """
         Backtest a model on a time series DataFrame.
@@ -92,7 +98,7 @@ class ForecastingRegressor(BaseEstimator, RegressorMixin):
                 )
             ]
 
-            metrics = self.calculate_metrics(_df, actuals_df, curr_date)
+            metrics = self.calculate_metrics(_df, actuals_df, curr_date, spark)
 
             if isinstance(metrics, dict):
                 evaluation_results = [
@@ -130,7 +136,7 @@ class ForecastingRegressor(BaseEstimator, RegressorMixin):
         return res_df
 
     def calculate_metrics(
-        self, hist_df: pd.DataFrame, val_df: pd.DataFrame, curr_date
+        self, hist_df: pd.DataFrame, val_df: pd.DataFrame, curr_date, spark=None
     ) -> Dict[str, Union[str, float, bytes]]:
         """
         Calculates the metrics using the provided historical DataFrame, validation DataFrame, current date.
@@ -170,5 +176,5 @@ class ForecastingRegressor(BaseEstimator, RegressorMixin):
             "metric_value": metric_value,
             "forecast": pred_df[self.params["target"]].to_numpy("float"),
             "actual": val_df[self.params["target"]].to_numpy(),
-            "model_pickle": model_fitted,
+            "model_pickle": cloudpickle.dumps(model_fitted),
         }

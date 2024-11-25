@@ -3,6 +3,8 @@ from typing import Any, Union, List, Dict
 import pandas as pd
 from omegaconf import OmegaConf
 from omegaconf.basecontainer import BaseContainer
+from pyspark.sql import SparkSession, DataFrame
+
 
 import importlib.resources as pkg_resources
 import yaml
@@ -10,6 +12,7 @@ from forecast_forge.forecaster import Forecaster
 
 
 def run_forecast(
+    spark: SparkSession,
     train_data,
     group_id,
     date_col,
@@ -107,11 +110,7 @@ def run_forecast(
     if run_id is not None:
         _conf["run_id"] = run_id
 
-    f = Forecaster(
-        _conf,
-        _data_conf,
-        run_id=run_id,
-    )
+    f = Forecaster(_conf, _data_conf, run_id=run_id, spark=spark)
 
     run_id = f.evaluate_score(evaluate=run_evaluation, score=run_scoring)
     return run_id  # Ensure this line is present

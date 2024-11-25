@@ -134,3 +134,4 @@ images/*
 /data
 
 /mlruns
+/weekly_evaluation_output
