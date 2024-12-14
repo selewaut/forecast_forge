@@ -27,7 +27,11 @@ Project contains framework to run and test multiple models in a spark environmen
     ```sh
     pip install -e .
     ```
-
+5. Install openjdk on local machine
+    ```sh
+    sudo apt-get update
+    sudo apt-get install openjdk-8-jdk
+    ```
 ## Usage
 
 ### Data Preparation
@@ -54,17 +58,22 @@ For downloading data from kaggle, you need to have a kaggle account and kaggle A
 ### Running the Code
 
 
-1. Start container.
+1. Move to directory containgin spark dockerfile.
+
+    ```sh
+    cd spark-setup
+    ```
+2. Start container.
 
     ```sh
     make run
     ```
     This will start a spark container with the code mounted in the container. The container will be running in the background.
 
-2. Run `univariate_weekly.py` script to train and test univariate weekly sales forecasting models.
+3. Run `univariate_weekly.py` script to train and test univariate weekly sales forecasting models.
 
     ```sh
     spark-submit --master local[*] src/forecast_forge/univariate_weekly.py
     ``` 
 
-3. Results are saved in parquet format in evaluation_output path.
+4. Results are saved in parquet format in evaluation_output path.
