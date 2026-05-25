@@ -10,6 +10,12 @@
       "secrets/**": "deny",
       "private-data/**": "deny",
       ".git/credentials": "deny",
+      "*credentials*": "deny",
+      "*token*": "deny",
+      "*auth*": "deny",
+      "*password*": "deny",
+      "*.kaggle*": "deny",
+      "*.netrc": "deny",
       "*.env.example": "allow"
     }
     ,
@@ -20,6 +26,16 @@
       "git log": "allow",
       "git show": "allow",
       "git diff --name-only": "allow",
+      "gh pr view *": "allow",
+      "gh pr list *": "allow",
+      "gh pr diff *": "allow",
+      "gh pr checks *": "allow",
+      "gh pr status *": "allow",
+      "gh issue view *": "allow",
+      "gh issue list *": "allow",
+      "gh run view *": "allow",
+      "gh run list *": "allow",
+      "gh search *": "allow",
       "git *": "ask",
       "*": "ask"
     }
@@ -27,9 +43,16 @@
     "external_directory": {
       "*": "allow",
       "~/.ssh/**": "deny",
+      "~/.aws/**": "deny",
+      "~/.kaggle/**": "deny",
+      "~/.config/gh/**": "deny",
+      "~/.config/gcloud/**": "deny",
+      "~/.docker/**": "deny",
+      "~/.netrc": "deny",
       "~/secrets/**": "deny",
       "~/Library/**": "deny",
-      "/etc/**": "deny"
+      "/etc/**": "deny",
+      "/private/**": "deny"
     }
     ,
     "edit": {
@@ -39,7 +62,12 @@
       ".git/credentials": "deny",
       "secrets/**": "deny",
       "*.pem": "deny",
-      "*.key": "deny"
+      "*.key": "deny",
+      "*credentials*": "deny",
+      "*token*": "deny",
+      "*auth*": "deny",
+      "*password*": "deny",
+      "*.kaggle*": "deny"
     }
   }
 }
