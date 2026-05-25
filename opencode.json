@@ -1,0 +1,45 @@
+{
+  "permission": {
+    "read": {
+      "*": "allow",
+      "*.env": "deny",
+      "*.env.*": "deny",
+      "*.pem": "deny",
+      "*.key": "deny",
+      "*.sqlite": "deny",
+      "secrets/**": "deny",
+      "private-data/**": "deny",
+      ".git/credentials": "deny",
+      "*.env.example": "allow"
+    }
+    ,
+    "bash": {
+      "git status": "allow",
+      "git rev-parse *": "allow",
+      "git branch": "allow",
+      "git log": "allow",
+      "git show": "allow",
+      "git diff --name-only": "allow",
+      "git *": "ask",
+      "*": "ask"
+    }
+    ,
+    "external_directory": {
+      "*": "allow",
+      "~/.ssh/**": "deny",
+      "~/secrets/**": "deny",
+      "~/Library/**": "deny",
+      "/etc/**": "deny"
+    }
+    ,
+    "edit": {
+      "*": "allow",
+      "*.env": "deny",
+      "*.env.*": "deny",
+      ".git/credentials": "deny",
+      "secrets/**": "deny",
+      "*.pem": "deny",
+      "*.key": "deny"
+    }
+  }
+}
