@@ -136,3 +136,4 @@ images/*
 
 /mlruns
 /weekly_evaluation_output
+/mlflow.db

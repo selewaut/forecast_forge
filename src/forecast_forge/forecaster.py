@@ -289,7 +289,13 @@ class Forecaster:
             self (Forecaster): A Forecaster object.
             model_conf (dict): A dictionary specifying the model configuration.
         """
-        with mlflow.start_run(experiment_id=self.experiment_id):
+        run_name = self.conf.get("run_name")
+        if run_name:
+            run_name = f"{run_name}-{model_conf['name']}"
+        else:
+            run_name = model_conf["name"]
+
+        with mlflow.start_run(experiment_id=self.experiment_id, run_name=run_name):
             src_df = self.resolve_source("train_data")
 
             # create spark dataframe
@@ -361,3 +367,6 @@ class Forecaster:
                 mlflow.log_metric(metric_name, metric_value)
                 mlflow.set_tag("model_name", model_conf["name"])
                 mlflow.set_tag("run_id", self.run_id)
+                mlflow.set_tag("forecast_run_id", self.run_id)
+                if self.conf.get("run_name"):
+                    mlflow.set_tag("forecast_run_name", self.conf["run_name"])

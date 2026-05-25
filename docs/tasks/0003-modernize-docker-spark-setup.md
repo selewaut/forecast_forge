@@ -2,11 +2,11 @@
 
 ## Status
 
-In progress
+On hold
 
 ## Epic
 
-[Epic 0001: UV, Python, and Spark Modernization](../epics/0001-uv-python-spark-modernization.md)
+[Epic 0002: Docker Spark Modernization](../epics/0002-docker-spark-modernization.md)
 
 ## Objective
 
@@ -38,6 +38,8 @@ Update the Docker-based Spark cluster to align with Python 3.13, modern Spark, J
 ## Validation
 
 Docker is not installed or not on `PATH` in the current environment, so build/run validation could not be executed here.
+
+This task is paused while local development and forecasting pipeline improvements take priority.
 
 Static and local validation performed:
 

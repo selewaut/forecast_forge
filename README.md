@@ -93,14 +93,32 @@ The data is stored in the `data/` directory. The data is stored in the following
 
 Data is originally downloaded using the following kaggle competition: https://www.kaggle.com/c/walmart-recruiting-store-sales-forecasting/data.
 
-For downloading data from kaggle, you need to have a kaggle account and kaggle API key. You can download the data using the following command:
+For downloading data from Kaggle, you need a Kaggle account, accepted rules for
+the Walmart competition, and local Kaggle credentials.
 
-1. Install kaggle package
-    ```sh
-    pip install kaggle
-    ```
-2. Generate API key from kaggle account and save it in `~/.kaggle/kaggle.json`
+Kaggle's current CLI authentication flow uses an access token:
 
+```sh
+mkdir -p ~/.kaggle
+echo "<KAGGLE_ACCESS_TOKEN>" > ~/.kaggle/access_token
+chmod 600 ~/.kaggle/access_token
+```
+
+You can generate the token from your Kaggle account settings. Legacy
+`~/.kaggle/kaggle.json` credentials also work, but this project uses the newer
+`kaggle>=2` CLI and supports `~/.kaggle/access_token`.
+
+Validate access:
+
+```sh
+uv run kaggle competitions files walmart-recruiting-store-sales-forecasting
+```
+
+Download the dataset:
+
+```sh
+uv run python -m forecast_forge.data
+```
 
 
 ### Running the Code
@@ -110,6 +128,21 @@ For downloading data from kaggle, you need to have a kaggle account and kaggle A
 Run local Spark jobs through `uv` when a cluster is not needed:
 
 ```sh
+uv run spark-submit --master 'local[*]' src/forecast_forge/univariate_weekly.py
+```
+
+Select specific models with repeated or comma-separated `--model` arguments:
+
+```sh
+uv run spark-submit --master 'local[*]' src/forecast_forge/univariate_weekly.py \
+  --model StatsForecastBaselineNaive \
+  --model StatsForecastAutoArima
+```
+
+For scripted runs, use `FORECAST_MODELS`:
+
+```sh
+FORECAST_MODELS=StatsForecastBaselineNaive,StatsForecastAutoArima \
 uv run spark-submit --master 'local[*]' src/forecast_forge/univariate_weekly.py
 ```
 

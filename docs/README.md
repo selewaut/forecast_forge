@@ -8,6 +8,7 @@ This directory tracks project context for planning, specifications, decisions, a
 - `tasks/`: implementation-sized work items with status, scope, and validation notes.
 - `ADRs/`: architecture decision records for decisions that should remain easy to review later.
 - `templates/`: reusable templates for epics, tasks, requirements, technical specs, and ADRs.
+- `mlflow.md`: local MLflow setup and run inspection guide for forecast jobs.
 
 ## Workflow
 

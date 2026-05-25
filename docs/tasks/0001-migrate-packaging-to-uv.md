@@ -6,7 +6,7 @@ Done
 
 ## Epic
 
-[Epic 0001: UV, Python, and Spark Modernization](../epics/0001-uv-python-spark-modernization.md)
+[Epic 0001: Local UV, Python, and Spark Modernization](../epics/0001-uv-python-spark-modernization.md)
 
 ## Objective
 
