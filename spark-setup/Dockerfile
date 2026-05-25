@@ -1,72 +1,61 @@
-FROM python:3.10-bullseye as spark-base
+FROM python:3.13-slim-bookworm AS spark-base
 
-ARG SPARK_VERSION=3.3.3
+ARG SPARK_VERSION=4.1.1
+ARG UV_VERSION=0.11.9
 
-# Install tools required by the OS
+ENV SPARK_HOME=/opt/spark
+ENV HADOOP_HOME=/opt/hadoop
+ENV JAVA_HOME=/opt/java/openjdk
+ENV PATH="/workspace/.venv/bin:/opt/spark/sbin:/opt/spark/bin:${JAVA_HOME}/bin:${PATH}"
+ENV PYSPARK_PYTHON=/workspace/.venv/bin/python
+ENV PYSPARK_DRIVER_PYTHON=/workspace/.venv/bin/python
+ENV UV_PROJECT_ENVIRONMENT=/workspace/.venv
+
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-      sudo \
-      curl \
-      vim \
-      unzip \
-      rsync \
-      openjdk-11-jdk \
+      bash \
       build-essential \
-      software-properties-common \
-      ssh && \
+      ca-certificates \
+      curl \
+      openjdk-17-jdk \
+      procps \
+      rsync \
+      ssh \
+      tini \
+      unzip && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
+RUN mkdir -p "${HADOOP_HOME}" "${SPARK_HOME}" /workspace /opt/java && \
+    ln -s /usr/lib/jvm/java-17-openjdk-* "${JAVA_HOME}"
 
-# Setup the directories for our Spark and Hadoop installations
-ENV SPARK_HOME=${SPARK_HOME:-"/opt/spark"}
-ENV HADOOP_HOME=${HADOOP_HOME:-"/opt/hadoop"}
+WORKDIR "${SPARK_HOME}"
 
-RUN mkdir -p ${HADOOP_HOME} && mkdir -p ${SPARK_HOME}
-WORKDIR ${SPARK_HOME}
+RUN curl -fL "https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop3.tgz" \
+      -o "spark-${SPARK_VERSION}-bin-hadoop3.tgz" && \
+    tar xzf "spark-${SPARK_VERSION}-bin-hadoop3.tgz" --directory "${SPARK_HOME}" --strip-components 1 && \
+    rm "spark-${SPARK_VERSION}-bin-hadoop3.tgz"
 
-# Download and install Spark
-RUN curl https://archive.apache.org/dist/spark/spark-${SPARK_VERSION}/spark-${SPARK_VERSION}-bin-hadoop3.tgz -o spark-${SPARK_VERSION}-bin-hadoop3.tgz \
- && tar xvzf spark-${SPARK_VERSION}-bin-hadoop3.tgz --directory /opt/spark --strip-components 1 \
- && rm -rf spark-${SPARK_VERSION}-bin-hadoop3.tgz
+FROM spark-base AS pyspark
 
+ARG UV_VERSION=0.11.9
 
-FROM spark-base as pyspark
+WORKDIR /workspace
 
-# Install python deps
-COPY requirements/requirements.txt .
-RUN pip3 install -r requirements.txt
+RUN pip install --no-cache-dir "uv==${UV_VERSION}"
 
-# Setup Spark related environment variables
-ENV PATH="/opt/spark/sbin:/opt/spark/bin:${PATH}"
-ENV SPARK_MASTER="spark://spark-master:7077"
-ENV SPARK_MASTER_HOST spark-master
-ENV SPARK_MASTER_PORT 7077
-ENV PYSPARK_PYTHON python3
+COPY pyproject.toml uv.lock README.md LICENSE .python-version ./
+COPY src ./src
 
-# Copy the default configurations into $SPARK_HOME/conf
-COPY conf/spark-defaults.conf "$SPARK_HOME/conf"
+RUN uv sync --frozen --no-dev
 
-RUN chmod u+x /opt/spark/sbin/* && \
-    chmod u+x /opt/spark/bin/*
+COPY spark-setup/conf/spark-defaults.conf "${SPARK_HOME}/conf/spark-defaults.conf"
+COPY --chmod=755 spark-setup/entrypoint.sh "${SPARK_HOME}/entrypoint.sh"
 
-ENV PYTHONPATH=$SPARK_HOME/python/:$PYTHONPATH
+RUN mkdir -p "${SPARK_HOME}/spark-events" && \
+    chmod +x "${SPARK_HOME}/entrypoint.sh" && \
+    test -x "${SPARK_HOME}/entrypoint.sh"
 
+WORKDIR "${SPARK_HOME}"
 
-
-
-# Copy appropriate entrypoint script
-COPY --chmod=755 entrypoint/entrypoint.sh /opt/spark/
-# VALIDATE FILE IS THERE, generate a message that if file is there print SUCCESS
-
-# Display contents and permissions
-RUN chmod +x /opt/spark/entrypoint.sh && \
-    echo "=== Validating Entrypoint Script ===" && \
-    ls -la /opt/spark/entrypoint.sh && \
-    echo "=== File Contents ===" && \
-    cat /opt/spark/entrypoint.sh && \
-    echo "=== Testing Execute Permissions ===" && \
-    test -x /opt/spark/entrypoint.sh && \
-    echo "SUCCESS: entrypoint.sh is executable"
-
-ENTRYPOINT ["/opt/spark/entrypoint.sh"]
+ENTRYPOINT ["/usr/bin/tini", "--", "/opt/spark/entrypoint.sh"]

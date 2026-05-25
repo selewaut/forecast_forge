@@ -1,57 +1,44 @@
+COMPOSE = docker compose
+app ?= src/forecast_forge/univariate_weekly.py
+APP ?= $(app)
+
+.PHONY: build build-nc build-progress down run run-scaled run-d stop submit smoke logs ps
+
 build:
-	docker-compose build
-
-build-yarn:
-	docker-compose -f docker-compose.yarn.yml build
-
-build-yarn-nc:
-	docker-compose -f docker-compose.yarn.yml build --no-cache
+	$(COMPOSE) build
 
 build-nc:
-	docker-compose build --no-cache
+	$(COMPOSE) build --no-cache
 
 build-progress:
-	docker-compose build --no-cache --progress=plain
+	$(COMPOSE) build --no-cache --progress=plain
 
 down:
-	docker-compose down --volumes --remove-orphans
-
-down-yarn:
-	docker-compose -f docker-compose.yarn.yml down --volumes --remove-orphans
+	$(COMPOSE) down --volumes --remove-orphans
 
 run:
-	make down && docker-compose up
+	$(COMPOSE) down --volumes --remove-orphans
+	$(COMPOSE) up
 
 run-scaled:
-	make down && docker-compose up --scale spark-worker=3
+	$(COMPOSE) down --volumes --remove-orphans
+	$(COMPOSE) up --scale spark-worker=3
 
 run-d:
-	make down && docker-compose up -d
-
-run-yarn:
-	make down-yarn && docker-compose -f docker-compose.yarn.yml up
-
-run-yarn-scaled:
-	make down-yarn && docker-compose -f docker-compose.yarn.yml up --scale spark-yarn-worker=3
+	$(COMPOSE) down --volumes --remove-orphans
+	$(COMPOSE) up -d
 
 stop:
-	docker-compose stop
-
-stop-yarn:
-	docker-compose -f docker-compose.yarn.yml stop
-
+	$(COMPOSE) stop
 
 submit:
-	docker exec da-spark-master spark-submit --master spark://spark-master:7077 --deploy-mode client ./apps/$(app)
+	docker exec da-spark-master spark-submit --master spark://spark-master:7077 --deploy-mode client /opt/spark/apps/$(APP)
 
-submit-da-book:
-	make submit app=data_analysis_book/$(app)
+smoke:
+	docker exec da-spark-master spark-submit --master spark://spark-master:7077 --deploy-mode client /opt/spark/examples/src/main/python/pi.py 10
 
-submit-yarn-test:
-	docker exec da-spark-yarn-master spark-submit --master yarn --deploy-mode cluster ./examples/src/main/python/pi.py
+logs:
+	$(COMPOSE) logs -f
 
-submit-yarn-cluster:
-	docker exec da-spark-yarn-master spark-submit --master yarn --deploy-mode cluster ./apps/$(app)
-
-rm-results:
-	rm -r book_data/results/*
+ps:
+	$(COMPOSE) ps

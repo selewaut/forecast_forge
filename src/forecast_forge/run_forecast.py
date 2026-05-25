@@ -36,6 +36,7 @@ def run_forecast(
     train_predict_ratio: int = None,
     resample: bool = False,
     experiment_path: str = None,
+    run_name: str = None,
     run_id: str = None,
     conf: Union[str, Dict[str, Any], OmegaConf] = None,
 ) -> str:
@@ -97,6 +98,8 @@ def run_forecast(
         _conf["train_predict_ratio"] = train_predict_ratio
     if experiment_path is not None:
         _conf["experiment_path"] = experiment_path
+    if run_name is not None:
+        _conf["run_name"] = run_name
     if evaluation_output is not None:
         _conf["evaluation_output"] = evaluation_output
     if model_output is not None:

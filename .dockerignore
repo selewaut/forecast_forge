@@ -1,0 +1,13 @@
+.git
+.venv
+__pycache__
+*.py[cod]
+.pytest_cache
+.ruff_cache
+.mypy_cache
+.ipynb_checkpoints
+data
+mlruns
+weekly_evaluation_output
+spark-setup/spark_apps
+spark-setup/.env.spark

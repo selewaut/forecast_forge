@@ -1,18 +1,18 @@
-version: '3.8'
-
 services:
   spark-master:
     container_name: da-spark-master
-    build: .
-    image: da-spark-image
-    entrypoint: ['/opt/spark/entrypoint.sh', 'master']
+    build:
+      context: ..
+      dockerfile: spark-setup/Dockerfile
+    image: forecast-forge-spark:latest
+    command: ["master"]
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8080" ]
       interval: 5s
       timeout: 3s
       retries: 3
     volumes:
-      - ./spark_apps:/opt/spark/apps
+      - ../:/opt/spark/apps
       - spark-logs:/opt/spark/spark-events
     env_file:
       - .env.spark
@@ -23,8 +23,8 @@ services:
 
   spark-history-server:
     container_name: da-spark-history
-    image: da-spark-image
-    entrypoint: ['/opt/spark/entrypoint.sh', 'history']
+    image: forecast-forge-spark:latest
+    command: ["history"]
     depends_on:
       - spark-master
     env_file:
@@ -36,14 +36,14 @@ services:
 
   spark-worker:
 #    container_name: da-spark-worker
-    image: da-spark-image
-    entrypoint: ['/opt/spark/entrypoint.sh', 'worker']
+    image: forecast-forge-spark:latest
+    command: ["worker"]
     depends_on:
       - spark-master
     env_file:
       - .env.spark
     volumes:
-      - ./spark_apps:/opt/spark/apps
+      - ../:/opt/spark/apps
       - spark-logs:/opt/spark/spark-events
 
 volumes:
