@@ -1,0 +1,21 @@
+{
+  "permission": {
+    "read": {
+      "*": "allow",
+      "*.env": "deny",
+      "*.env.*": "deny",
+      "*.env.example": "allow"
+    }
+    ,
+    "bash": {
+      "git status": "allow",
+      "git rev-parse *": "allow",
+      "git branch": "allow",
+      "git log": "allow",
+      "git show": "allow",
+      "git diff --name-only": "allow",
+      "git *": "ask",
+      "*": "ask"
+    }
+  }
+}
