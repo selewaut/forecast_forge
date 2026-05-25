@@ -16,12 +16,12 @@ Abstract feature engineering into a configurable, composable pipeline so that da
 
 ## Tasks
 
-- [ ] [Task 0009: Implement pluggable FeaturePipeline abstraction](../tasks/0009-feature-pipeline-abstraction.md)
-- [ ] [Task 0010: Build generic feature transformers (calendar, lags, rolling, Fourier)](../tasks/0010-generic-feature-transformers.md)
+- [ ] [Task 0009: Implement pluggable FeaturePipeline abstraction](tasks/0009-feature-pipeline-abstraction.md)
+- [ ] [Task 0010: Build generic feature transformers (calendar, lags, rolling, Fourier)](tasks/0010-generic-feature-transformers.md)
 
 ## Decisions
 
-- [ ] [ADR 0004: Feature pipeline design — composable transformer chain pattern](../ADRs/0004-feature-pipeline-design.md)
+- [ ] [ADR 0004: Feature pipeline design — composable transformer chain pattern](../../ADRs/0004-feature-pipeline-design.md)
 
 ## Notes
 

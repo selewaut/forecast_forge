@@ -17,12 +17,12 @@ Extract walk-forward validation from model classes into a standalone `BacktestEn
 
 ## Tasks
 
-- [ ] [Task 0014: Decouple backtesting into standalone BacktestEngine](../tasks/0014-backtest-engine.md)
-- [ ] [Task 0015: Add typed exception hierarchy](../tasks/0015-typed-exception-hierarchy.md)
+- [ ] [Task 0014: Decouple backtesting into standalone BacktestEngine](tasks/0014-backtest-engine.md)
+- [ ] [Task 0015: Add typed exception hierarchy](tasks/0015-typed-exception-hierarchy.md)
 
 ## Decisions
 
-- [ ] [ADR 0006: Backtest engine walk-forward strategy design](../ADRs/0006-backtest-engine-design.md)
+- [ ] [ADR 0006: Backtest engine walk-forward strategy design](../../ADRs/0006-backtest-engine-design.md)
 
 ## Notes
 

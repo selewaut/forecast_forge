@@ -6,7 +6,7 @@ Planned
 
 ## Epic
 
-[Epic 0003: Data Loading Abstraction](../epics/0003-dataset-agnostic-pipeline.md)
+[Epic 0003: Data Loading Abstraction](../index.md)
 
 ## Objective
 
@@ -39,7 +39,7 @@ Expected: test_base_loader_interface, test_schema_adapter_mapping, test_schema_a
 
 ## Documentation Updates
 
-- Add `docs/ADRs/0003-dataloader-interface-design.md`.
+- Add `docs/ADRs/0003-dataloader-interface-design.md` (already created).
 - Document the loader interface in the README or a new `docs/loaders.md`.
 
 ## Notes

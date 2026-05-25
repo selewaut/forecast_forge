@@ -6,7 +6,7 @@ Planned
 
 ## Epic
 
-[Epic 0003: Data Loading Abstraction](../epics/0003-dataset-agnostic-pipeline.md)
+[Epic 0003: Data Loading Abstraction](../index.md)
 
 ## Objective
 
