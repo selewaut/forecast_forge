@@ -4,6 +4,12 @@
       "*": "allow",
       "*.env": "deny",
       "*.env.*": "deny",
+      "*.pem": "deny",
+      "*.key": "deny",
+      "*.sqlite": "deny",
+      "secrets/**": "deny",
+      "private-data/**": "deny",
+      ".git/credentials": "deny",
       "*.env.example": "allow"
     }
     ,
@@ -16,6 +22,14 @@
       "git diff --name-only": "allow",
       "git *": "ask",
       "*": "ask"
+    }
+    ,
+    "external_directory": {
+      "*": "allow",
+      "~/.ssh/**": "deny",
+      "~/secrets/**": "deny",
+      "~/Library/**": "deny",
+      "/etc/**": "deny"
     }
   }
 }
