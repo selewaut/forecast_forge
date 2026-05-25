@@ -13,25 +13,73 @@ Project contains framework to run and test multiple models in a spark environmen
     cd forecast_forge
     ```
 
-2. Create and activate a virtual environment:
+2. Install `uv` and Python 3.13:
     ```sh
-    python3 -m venv .venv
-    source .venv/bin/activate
+    brew install uv
+    uv python install 3.13
     ```
 
-3. Install the required dependencies:
+3. Install Java 17 for local Spark execution:
     ```sh
-    pip install -r requirements.txt
+    brew install openjdk@17
     ```
-4. Install forecast_forge package
+
+4. Install the project dependencies:
     ```sh
-    pip install -e .
+    uv sync
     ```
-5. Install openjdk on local machine
-    ```sh
-    sudo apt-get update
-    sudo apt-get install openjdk-8-jdk
-    ```
+
+On Linux, install OpenJDK 17 with your system package manager. On Windows, prefer WSL for local development and install OpenJDK 17 inside the WSL distribution.
+
+### Project Environment
+
+This repository includes a `.envrc` that sets Homebrew OpenJDK 17 for this project:
+
+```sh
+export JAVA_HOME=/opt/homebrew/opt/openjdk@17
+export PATH="$JAVA_HOME/bin:$PATH"
+```
+
+Install and enable `direnv` on macOS:
+
+```sh
+brew install direnv
+echo 'eval "$(direnv hook zsh)"' >> ~/.zshrc
+source ~/.zshrc
+direnv allow
+```
+
+The shell hook is global, but the environment values are project-specific. The hook only teaches zsh to ask `direnv` whether the current directory has an approved `.envrc`. The Java 17 values above load when the shell enters this repository and unload when it leaves.
+
+After setup, verify the project environment with:
+
+```sh
+direnv exec . sh -c 'echo JAVA_HOME=$JAVA_HOME && java -version'
+```
+
+Without `direnv`, export the same `JAVA_HOME` and `PATH` values manually before running local Spark commands:
+
+```sh
+export JAVA_HOME=/opt/homebrew/opt/openjdk@17
+export PATH="$JAVA_HOME/bin:$PATH"
+```
+
+## Local Spark Smoke Test
+
+Validate local PySpark execution with:
+
+```sh
+JAVA_HOME=/opt/homebrew/opt/openjdk@17 PATH=/opt/homebrew/opt/openjdk@17/bin:$PATH uv run python -c "from pyspark.sql import SparkSession; spark = SparkSession.builder.master('local[*]').appName('forecast-forge-smoke').getOrCreate(); spark.range(1).show(); spark.stop()"
+```
+
+If Java 17 is already configured in your shell, or `direnv allow` has loaded the project `.envrc`, this shorter command should work:
+
+```sh
+uv run python -c "from pyspark.sql import SparkSession; spark = SparkSession.builder.master('local[*]').getOrCreate(); spark.range(1).show(); spark.stop()"
+```
+
+For non-interactive shells or CI commands, prefer either `direnv exec . <command>` or explicit `JAVA_HOME`/`PATH` values.
+
 ## Usage
 
 ### Data Preparation
@@ -57,23 +105,45 @@ For downloading data from kaggle, you need to have a kaggle account and kaggle A
 
 ### Running the Code
 
+#### Local PySpark
 
-1. Move to directory containgin spark dockerfile.
+Run local Spark jobs through `uv` when a cluster is not needed:
+
+```sh
+uv run spark-submit --master 'local[*]' src/forecast_forge/univariate_weekly.py
+```
+
+#### Docker Spark Cluster
+
+1. Move to the Spark setup directory.
 
     ```sh
     cd spark-setup
     ```
-2. Start container.
+2. Build the image.
 
     ```sh
-    make run
+    make build
     ```
-    This will start a spark container with the code mounted in the container. The container will be running in the background.
 
-3. Run `univariate_weekly.py` script to train and test univariate weekly sales forecasting models.
+3. Start the cluster in the background.
 
     ```sh
-    spark-submit --master local[*] src/forecast_forge/univariate_weekly.py
+    make run-d
+    ```
+
+4. Run the cluster smoke test.
+
+    ```sh
+    make smoke
+    ```
+
+5. Submit `univariate_weekly.py` to the Spark master.
+
+    ```sh
+    make submit app=src/forecast_forge/univariate_weekly.py
     ``` 
 
-4. Results are saved in parquet format in evaluation_output path.
+Results are saved in parquet format in evaluation_output path.
+
+The Spark master UI is available at http://localhost:9090. The history server is available at http://localhost:18080.
