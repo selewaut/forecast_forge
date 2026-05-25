@@ -31,5 +31,15 @@
       "~/Library/**": "deny",
       "/etc/**": "deny"
     }
+    ,
+    "edit": {
+      "*": "allow",
+      "*.env": "deny",
+      "*.env.*": "deny",
+      ".git/credentials": "deny",
+      "secrets/**": "deny",
+      "*.pem": "deny",
+      "*.key": "deny"
+    }
   }
 }
