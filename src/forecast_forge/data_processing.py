@@ -101,20 +101,22 @@ def build_preprocessing_pipeline(group_columns: List[str]) -> ColumnTransformer:
 
 def pre_process_data(
     df_train: pd.DataFrame,
-    df_test: pd.DataFrame,
-    df_features: pd.DataFrame,
-    df_stores: pd.DataFrame,
-    target_column: str,
-    date_column: str,
-    group_columns: List[str],
+    df_test: pd.DataFrame = None,
+    df_features: pd.DataFrame = None,
+    df_stores: pd.DataFrame = None,
+    target_column: str = "weekly_sales",
+    date_column: str = "date",
+    group_columns: List[str] = ("group_id", "date"),
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
     Preprocess train and test data.
 
     df_train: pd.DataFrame - Training DataFrame.
     df_test: pd.DataFrame - Test DataFrame.
-    df_features: pd.DataFrame - DataFrame with additional features.
-    df_stores: pd.DataFrame - DataFrame with store details.
+    df_features: pd.DataFrame | None - DataFrame with additional features.
+        If None, merge is skipped (loader already merged).
+    df_stores: pd.DataFrame | None - DataFrame with store details.
+        If None, merge is skipped (loader already merged).
     target_column: str - Target column name.
     date_column: str - Date column name.
     group_columns: List[str] - Columns to be used for grouping (e.g., 'group_id', 'date').
@@ -122,21 +124,28 @@ def pre_process_data(
     Returns:
     Tuple: Processed training and test DataFrames.
     """
+    if df_test is None:
+        df_test = pd.DataFrame()
 
     logging.info("Starting data preprocessing")
 
-    # Merge features and stores
-    df_train = merge_dataframes(
-        df_train, df_features, on=["date", "store", "isholiday"]
-    )
-    df_train = merge_dataframes(df_train, df_stores, on=["store"])
+    # Merge features and stores (skip if loader already merged)
+    if df_features is not None and not df_features.empty:
+        df_train = merge_dataframes(
+            df_train, df_features, on=["date", "store", "isholiday"]
+        )
+    if df_stores is not None and not df_stores.empty:
+        df_train = merge_dataframes(df_train, df_stores, on=["store"])
 
-    df_test = merge_dataframes(df_test, df_features, on=["date", "store", "isholiday"])
-    df_test = merge_dataframes(df_test, df_stores, on=["store"])
+    if df_features is not None and not df_features.empty:
+        df_test = merge_dataframes(df_test, df_features, on=["date", "store", "isholiday"])
+    if df_stores is not None and not df_stores.empty:
+        df_test = merge_dataframes(df_test, df_stores, on=["store"])
 
     # Generate week feature
     df_train = generate_week_feature(df_train, date_col=date_column)
-    df_test = generate_week_feature(df_test, date_col=date_column)
+    if not df_test.empty:
+        df_test = generate_week_feature(df_test, date_col=date_column)
 
     # Handle negative sales
     df_train = negative_sales_to_zero(df_train, target_column)
@@ -170,17 +179,13 @@ def pre_process_data(
 
 
 if __name__ == "__main__":
-    from forecast_forge.data_loader import load_data
+    from forecast_forge.loaders.walmart import WalmartDataLoader
 
-    # Load data
-    df_train, df_test, df_features, df_stores = load_data()
+    loader = WalmartDataLoader()
+    df_train = loader.load()
 
-    # Preprocess data
-    df_train_transformed, df_test = pre_process_data(
+    df_train_transformed, _ = pre_process_data(
         df_train,
-        df_test,
-        df_features,
-        df_stores,
         target_column="weekly_sales",
         date_column="date",
         group_columns=["group_id", "date"],

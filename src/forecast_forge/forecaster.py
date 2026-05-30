@@ -1,29 +1,18 @@
 import datetime
 import functools
-import pathlib
-import uuid
-
-import cloudpickle
-import mlflow
-import pandas as pd
-import yaml
-from mlflow.tracking import MlflowClient
-from omegaconf import OmegaConf
-from omegaconf.basecontainer import BaseContainer
-
-import os
-import functools
 import logging
+import os
 import pathlib
 import uuid
-import yaml
 from typing import Dict, Any, Tuple, Union
-import pandas as pd
-import numpy as np
+
 import cloudpickle
 import mlflow
-from mlflow.tracking import MlflowClient
+import numpy as np
+import pandas as pd
+import yaml
 from mlflow.models import ModelSignature, infer_signature
+from mlflow.tracking import MlflowClient
 from mlflow.types.schema import Schema, ColSpec
 from omegaconf import OmegaConf
 from omegaconf.basecontainer import BaseContainer
@@ -52,7 +41,8 @@ from pyspark.sql.functions import (
 )
 
 from forecast_forge.abstract_model import ForecastingRegressor
-from forecast_forge.data_loader import load_data
+from forecast_forge.loaders.base import BaseDataLoader
+from forecast_forge.loaders.walmart import WalmartDataLoader
 from forecast_forge.data_processing import pre_process_data
 from forecast_forge.model_registry import ModelRegistry
 
@@ -102,9 +92,11 @@ class Forecaster:
 
         if self.data_conf:
             df_val = self.data_conf.get(key)
-            if df_val is not None and isinstance(df_val, pd.DataFrame):
+            if isinstance(df_val, BaseDataLoader):
+                return self.spark.createDataFrame(df_val.load())
+            if isinstance(df_val, pd.DataFrame):
                 return self.spark.createDataFrame(df_val)
-            elif df_val is not None and isinstance(df_val, DataFrame):
+            if isinstance(df_val, DataFrame):
                 return df_val
             else:
                 df_val = self.load_data()
@@ -183,12 +175,10 @@ class Forecaster:
         print("Finished scoring all models")
 
     def load_data(self):
-        df_train, df_test, df_features, df_stores = load_data()
-        df_train, df_test = pre_process_data(
+        loader = WalmartDataLoader()
+        df_train = loader.load()
+        df_train, _ = pre_process_data(
             df_train,
-            df_test,
-            df_features,
-            df_stores,
             target_column=self.conf.get("target"),
             group_columns=[self.conf.get("group_id"), self.conf.get("date_col")],
             date_column=self.conf.get("date_col"),

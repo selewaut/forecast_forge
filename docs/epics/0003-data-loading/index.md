@@ -17,9 +17,9 @@ Decouple data loading from any single dataset so new datasets can be added throu
 
 ## Tasks
 
-- [ ] [Task 0006: Define BaseDataLoader interface and schema adapter](tasks/0006-base-dataloader-interface.md)
-- [ ] [Task 0007: Refactor Walmart data loading into adapter module](tasks/0007-walmart-loader-adapter.md)
-- [ ] [Task 0008: Add datasets config directory with validation](tasks/0008-datasets-config-directory.md)
+- [ ] [Task 0001: Define BaseDataLoader interface and schema adapter](tasks/0001-base-dataloader-interface.md)
+- [ ] [Task 0002: Refactor Walmart data loading into adapter module](tasks/0002-walmart-loader-adapter.md)
+- [ ] [Task 0003: Add datasets config directory with validation](tasks/0003-datasets-config-directory.md)
 
 ## Decisions
 

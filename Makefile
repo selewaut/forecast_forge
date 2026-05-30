@@ -34,7 +34,7 @@ data: $(DATA_FILES) ## Download and verify the Walmart forecasting dataset.
 
 $(DATA_FILES):
 	@echo "Downloading Walmart dataset from Kaggle..."
-	uv run python -c "from forecast_forge.data import download_data; download_data()"
+	uv run python -c "from forecast_forge.loaders.walmart import WalmartDataLoader; WalmartDataLoader().download()"
 	@echo "✓ Data downloaded to $(DATA_DIR)"
 
 run: ## Run the local Spark forecasting pipeline. Optionally pass MODEL=<model>.

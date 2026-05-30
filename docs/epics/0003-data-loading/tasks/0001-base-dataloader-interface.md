@@ -1,4 +1,4 @@
-# Task 0006: Define BaseDataLoader Interface and Schema Adapter
+# Task 0001: Define BaseDataLoader Interface and Schema Adapter
 
 ## Status
 
@@ -14,13 +14,13 @@ A `BaseDataLoader` abstract class and `SchemaAdapter` exist in `src/forecast_for
 
 ## Scope
 
-- Define `BaseDataLoader` abstract class with a `load() -> Dict[str, pd.DataFrame]` method.
+- Define `BaseDataLoader` abstract class with a `load() -> pd.DataFrame` method.
 - Define `SchemaAdapter` dataclass that maps arbitrary column names to canonical names (`group_id`, `date_col`, `target`, and optional exogenous columns).
 - Define `DataLoadingConfig` dataclass: loader class path, file paths, schema mapping, download config.
 - Create `src/forecast_forge/loaders/__init__.py` that exports the new types.
 - Create `DictLoader` and `CsvLoader` as test-only helpers in `tests/test_loaders/helpers.py`.
 - Add a thin adapter in `Forecaster.resolve_source()` that detects a `BaseDataLoader` in `data_conf`, calls `.load()`, and converts the result to a Spark DataFrame before falling back to the hardcoded Walmart path.
-- Existing hardcoded `config.py` and `data_loader.py` remain untouched until Task 0007.
+- Existing hardcoded `config.py` and `data_loader.py` remain untouched until Task 0002.
 
 ## Acceptance Criteria
 
@@ -91,7 +91,7 @@ Requires Spark (`pytest.mark.spark`).
 
 The interface design follows MMF's `resolve_source()` which accepts `Union[str, pd.DataFrame, DataFrame]`. The key addition is abstracting the file-to-DataFrame conversion, not the DataFrame-passing itself.
 
-Use `__init_subclass__` or `importlib` registration pattern so loaders can be discovered from the `datasets/` config directory (Task 0008).
+Use `__init_subclass__` or `importlib` registration pattern so loaders can be discovered from the `datasets/` config directory (Task 0003).
 
 Testing strategy: synthetic fixtures — a small CSV on disk, a dict-based loader for unit tests, and a SQLite in-memory loader for SQL-source tests.
 
@@ -116,14 +116,13 @@ def resolve_source(self, key: str):
     if self.data_conf:
         df_val = self.data_conf.get(key)
         if isinstance(df_val, BaseDataLoader):
-            result = df_val.load()
-            return self.spark.createDataFrame(result["train"])
+            return self.spark.createDataFrame(df_val.load())
         elif isinstance(df_val, pd.DataFrame):
             return self.spark.createDataFrame(df_val)
         elif isinstance(df_val, DataFrame):
             return df_val
         else:
-            # fallback to hardcoded Walmart (removed in Task 0007)
+            # fallback to hardcoded Walmart (removed in Task 0002)
             return self.spark.createDataFrame(self.load_data())
 ```
 

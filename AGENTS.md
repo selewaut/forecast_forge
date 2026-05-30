@@ -52,6 +52,10 @@ Use standard Python style with 4-space indentation, clear module names, and snak
 
 No formatter or linter is currently configured. If adding one, document the command and avoid broad reformatting unrelated files in the same change.
 
+## Development Workflow
+
+Use test-driven development: write the test first, then implement the feature to make it pass. Tests define the contract; features satisfy it.
+
 ## Testing Guidelines
 
 Pytest is the expected test framework, configured through `pyproject.toml`. Place tests under `tests/` using names like `test_data_processing.py` and `test_builds_time_series_features()`. Cover transformations, model registry behavior, and configuration parsing before larger Spark integration tests. Use small synthetic fixtures.

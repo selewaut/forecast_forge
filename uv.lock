@@ -601,6 +601,7 @@ dependencies = [
     { name = "omegaconf" },
     { name = "pyarrow" },
     { name = "pyspark" },
+    { name = "pyyaml" },
     { name = "sktime" },
     { name = "statsforecast" },
 ]
@@ -617,6 +618,7 @@ requires-dist = [
     { name = "omegaconf", specifier = "==2.3.0" },
     { name = "pyarrow", specifier = ">=18.0.0" },
     { name = "pyspark", specifier = ">=4.1,<4.2" },
+    { name = "pyyaml", specifier = ">=6.0" },
     { name = "sktime", specifier = "==0.34.0" },
     { name = "statsforecast", specifier = "==1.7.4" },
 ]

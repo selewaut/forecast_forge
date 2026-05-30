@@ -1,4 +1,4 @@
-# Task 0008: Add Datasets Config Directory and Schema Validation
+# Task 0003: Add Datasets Config Directory and Schema Validation
 
 ## Status
 
