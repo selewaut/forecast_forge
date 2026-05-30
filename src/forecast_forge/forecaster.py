@@ -1,5 +1,6 @@
 import datetime
 import functools
+import importlib
 import logging
 import os
 import pathlib
@@ -42,13 +43,14 @@ from pyspark.sql.functions import (
 
 from forecast_forge.abstract_model import ForecastingRegressor
 from forecast_forge.loaders.base import BaseDataLoader
+from forecast_forge.loaders.dataset_registry import DatasetRegistry
 from forecast_forge.loaders.walmart import WalmartDataLoader
 from forecast_forge.data_processing import pre_process_data
 from forecast_forge.model_registry import ModelRegistry
 
 
 class Forecaster:
-    def __init__(self, conf, data_conf, experiment_id=None, run_id=None, spark=None):
+    def __init__(self, conf, data_conf, experiment_id=None, run_id=None, spark=None, dataset_name=None):
 
         if isinstance(conf, BaseContainer):
             self.conf = conf
@@ -77,6 +79,16 @@ class Forecaster:
             raise Exception("Set 'experiment_path' in configuration file")
 
         self.run_date = datetime.datetime.now()
+        self._loader = self._resolve_loader(dataset_name)
+
+    def _resolve_loader(self, dataset_name: str | None) -> BaseDataLoader | None:
+        name = dataset_name or self.conf.get("dataset_name")
+        if not name:
+            return None
+        config = DatasetRegistry().get(name)
+        module = importlib.import_module(config.loader_module)
+        loader_class = getattr(module, config.loader_class)
+        return loader_class(config=config)
 
     def set_mlflow_experiment(self):
 
@@ -175,7 +187,7 @@ class Forecaster:
         print("Finished scoring all models")
 
     def load_data(self):
-        loader = WalmartDataLoader()
+        loader = self._loader or WalmartDataLoader()
         df_train = loader.load()
         df_train, _ = pre_process_data(
             df_train,

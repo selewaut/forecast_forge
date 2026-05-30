@@ -2,7 +2,7 @@
 
 ## Status
 
-Planned
+Done
 
 ## Epic
 
@@ -54,6 +54,28 @@ Expected: loads and preprocesses Walmart data without errors.
 
 - Add `datasets/README.md` explaining how to add a new dataset.
 - README updated with dataset configuration section.
+
+## Gotchas
+
+### New methods must not split `__init__`
+
+When adding a method to `Forecaster`, placing a `def` between field assignments and the experiment_id/run_date blocks causes Python to **end `__init__` early**. Any lines after the method definition are interpreted as class-level dead code:
+
+```python
+# BAD — logic after def ends up outside __init__
+class Forecaster:
+    def __init__(self, ...):
+        self.spark = spark
+        self._loader = self._resolve_loader(dataset_name)  # ← triggers def
+
+    def _resolve_loader(self, ...):  # ← this def ENDS __init__
+        ...
+
+        if experiment_id:              # ← DEAD CODE — never runs
+            self.experiment_id = ...
+```
+
+Fix: keep the experiment_id + run_date logic **before** any `def` statements inside `__init__`.
 
 ## Notes
 

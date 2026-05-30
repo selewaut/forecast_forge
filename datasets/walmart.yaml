@@ -1,0 +1,22 @@
+loader:
+  module: forecast_forge.loaders.walmart
+  class: WalmartDataLoader
+files:
+  train_path: data/walmart_sales_forecasting/train.csv
+  test_path: data/walmart_sales_forecasting/test.csv
+  features_path: data/walmart_sales_forecasting/features.csv
+  stores_path: data/walmart_sales_forecasting/stores.csv
+schema:
+  unique_id: group_id
+  ds: date
+  y: weekly_sales
+  exogenous:
+    - isholiday
+    - temperature
+    - fuel_price
+    - cpi
+    - type
+    - size
+download:
+  source: kaggle
+  competition: walmart-recruiting-store-sales-forecasting

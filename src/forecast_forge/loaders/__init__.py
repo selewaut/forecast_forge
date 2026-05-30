@@ -1,5 +1,13 @@
 from forecast_forge.loaders.base import BaseDataLoader, DataLoadingConfig
+from forecast_forge.loaders.dataset_registry import DatasetRegistry, SchemaValidationError
 from forecast_forge.loaders.schema import SchemaAdapter
 from forecast_forge.loaders.walmart import WalmartDataLoader
 
-__all__ = ["BaseDataLoader", "DataLoadingConfig", "SchemaAdapter", "WalmartDataLoader"]
+__all__ = [
+    "BaseDataLoader",
+    "DataLoadingConfig",
+    "DatasetRegistry",
+    "SchemaAdapter",
+    "SchemaValidationError",
+    "WalmartDataLoader",
+]
