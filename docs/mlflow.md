@@ -22,10 +22,49 @@ Open:
 http://127.0.0.1:5000
 ```
 
-If port `5000` is already in use:
+If port `5000` is already in use (common on macOS where AirPlay Receiver, Control Center, or other services bind to it):
 
 ```sh
 uv run mlflow ui --backend-store-uri sqlite:///mlflow.db --port 5001
+```
+
+If you get "Access denied" when opening the URL, the existing process on port 5000 is likely not MLflow. Kill it first or use a different port: `--port 5002`.
+
+> **macOS note:** Port 5000 is occupied by AirPlay Receiver and Control Center. Use `--port 5001`.
+
+## Tracking URI & Spaces in the Path
+
+MLflow 3.12.0 has a bug where `path_to_local_sqlite_uri()` URL-encodes spaces as
+`%20` via `pathname2url`, but SQLAlchemy's SQLite driver treats `%20` literally
+(does not decode it back to a space). This creates a **second** `mlflow.db` at a
+literal `Code%20Projects/...` path — all pipeline runs go there, while the
+"real" `mlflow.db` at the path with spaces stays empty, and the UI shows only
+"Default".
+
+To avoid this, set `MLFLOW_TRACKING_URI` to the relative path (no spaces) in
+your shell or `.envrc`:
+
+```sh
+export MLFLOW_TRACKING_URI=sqlite:///mlflow.db
+```
+
+This bypasses the buggy auto-detection. Use it before the pipeline and the UI:
+
+```sh
+export MLFLOW_TRACKING_URI=sqlite:///mlflow.db
+uv run spark-submit --master 'local[*]' src/forecast_forge/univariate_weekly.py
+```
+
+```sh
+export MLFLOW_TRACKING_URI=sqlite:///mlflow.db
+uv run mlflow ui --backend-store-uri sqlite:///mlflow.db --port 5001
+```
+
+If you accidentally accumulated a stale `mlflow.db` inside a `Code%20Projects/`
+directory, remove it:
+
+```sh
+rm "/Users/selewaut/Code%20Projects/forecast_forge/mlflow.db"
 ```
 
 ## Experiments

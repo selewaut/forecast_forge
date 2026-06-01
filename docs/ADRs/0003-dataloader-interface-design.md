@@ -2,37 +2,35 @@
 
 ## Status
 
-Proposed
+**Superseded** — replaced by ADR 0004 (simplified per-dataset scripts).
+
+## Superseded By
+
+ADR 0004: Per-Dataset Data Preparation Scripts (simplified MMF-like approach).
 
 ## Context
 
-The current pipeline hardcodes Walmart dataset loading in `data_loader.py`, `data.py`, and `config.py`. Making the pipeline dataset-agnostic requires an abstraction for loading data from arbitrary sources (CSV, Parquet, SQL, Delta) with configurable schema mapping.
+The original ADR proposed an abstract base class pattern (`BaseDataLoader`, `SchemaAdapter`, `DatasetRegistry`) to decouple data loading from any single dataset. After implementing and reviewing against Databricks MMF, this proved over-engineered for the project's needs.
 
-The existing `Forecaster.resolve_source()` already accepts `Union[str, pd.DataFrame, DataFrame]` for in-memory data, but the file-to-DataFrame conversion path is hardcoded.
+## Lessons Learned
 
-## Decision
+1. **SchemaAdapter (`unique_id`/`ds`/`y` canonical columns) was unnecessary** — the pipeline already references columns by config keys (`group_id`, `date_col`, `target`). No renaming layer is needed.
+2. **`BaseDataLoader` ABC added ceremony without benefit** — each dataset has unique loading logic; a shared interface doesn't reduce code.
+3. **`DatasetRegistry` + `datasets/{name}.yaml` was indirect** — passing data directly to `run_forecast()` is simpler and more transparent.
+4. **MMF's approach is simpler and sufficient**: pass column names as config params, provide data as a DataFrame, write a per-dataset script for preparation.
 
-Use an abstract base class pattern for loaders:
+## Decision (Current)
 
-```python
-class BaseDataLoader(ABC):
-    @abstractmethod
-    def load(self, split: bool = True) -> Dict[str, pd.DataFrame]:
-        ...
-```
+Use a per-dataset script pattern instead of a loader abstraction:
 
-Concrete loaders (`CsvLoader`, `ParquetLoader`, `WalmartDataLoader`) implement the interface. A `SchemaAdapter` handles column renaming/validation after load. A `DatasetRegistry` scans a `datasets/` directory and resolves dataset names to `DataLoadingConfig` objects.
-
-Key decisions:
-
-1. **Loader discovery by convention, not registration** — `datasets/{name}.yaml` maps 1:1 to dataset names. No central registry to update.
-2. **Schema mapping at load time, not query time** — The loader returns DataFrames with canonical column names. The downstream pipeline never sees original column names.
-3. **Download is optional** — `BaseDataLoader` has an optional `download()` method. Only loaders that need remote data (like Walmart/Kaggle) implement it.
-4. **No SQL abstraction yet** — SQL source support is deferred until there's a concrete use case. The interface is designed to allow it but not enforced.
+1. Each dataset lives in `datasets/{name}/` with a `load_{name}_data() -> pd.DataFrame` function.
+2. The function handles download, loading, merging, and any dataset-specific transforms.
+3. The pipeline (`Forecaster`, `run_forecast()`) only accepts `str | pd.DataFrame | Spark DataFrame` — no loader interface.
+4. Column names are configured at the `run_forecast()` call site via `group_id`, `date_col`, `target` params (same as MMF).
 
 ## Consequences
 
-- Easier: adding a new dataset means writing a loader class + YAML config, no pipeline changes.
-- Easier: testing with synthetic data — use a `DictLoader` or `CsvLoader` with a temp file.
-- Harder: legacy `data_loader.py` must be migrated in lockstep — the old code and new interface coexist briefly during Task 0007.
-- Neutral: the `Forecaster.load_data()` method grows a lookup step (`DatasetRegistry.get(dataset_name)`) but the rest of the pipeline stays the same.
+- Simpler: no abstract classes, no registry, no schema adapter.
+- Simpler: adding a dataset means writing one function and passing its output to `run_forecast()`.
+- Clearer: the data preparation contract is "return a DataFrame with the columns your config references."
+- Removed: `src/forecast_forge/loaders/`, `src/forecast_forge/data_processing.py`, `datasets/walmart.yaml`.

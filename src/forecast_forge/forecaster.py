@@ -1,8 +1,6 @@
 import datetime
 import functools
-import importlib
 import logging
-import os
 import pathlib
 import uuid
 from typing import Dict, Any, Tuple, Union
@@ -12,12 +10,11 @@ import mlflow
 import numpy as np
 import pandas as pd
 import yaml
-from mlflow.models import ModelSignature, infer_signature
 from mlflow.tracking import MlflowClient
-from mlflow.types.schema import Schema, ColSpec
 from omegaconf import OmegaConf
 from omegaconf.basecontainer import BaseContainer
 from pyspark.sql import SparkSession, DataFrame
+from pyspark.sql.functions import col, lit
 from pyspark.sql.types import (
     StructType,
     StructField,
@@ -27,30 +24,14 @@ from pyspark.sql.types import (
     TimestampType,
     BinaryType,
     ArrayType,
-    IntegerType,
-)
-from pyspark.sql.functions import (
-    lit,
-    avg,
-    min,
-    max,
-    col,
-    posexplode,
-    collect_list,
-    to_date,
-    countDistinct,
 )
 
 from forecast_forge.abstract_model import ForecastingRegressor
-from forecast_forge.loaders.base import BaseDataLoader
-from forecast_forge.loaders.dataset_registry import DatasetRegistry
-from forecast_forge.loaders.walmart import WalmartDataLoader
-from forecast_forge.data_processing import pre_process_data
 from forecast_forge.model_registry import ModelRegistry
 
 
 class Forecaster:
-    def __init__(self, conf, data_conf, experiment_id=None, run_id=None, spark=None, dataset_name=None):
+    def __init__(self, conf, data_conf, experiment_id=None, run_id=None, spark=None):
 
         if isinstance(conf, BaseContainer):
             self.conf = conf
@@ -79,16 +60,6 @@ class Forecaster:
             raise Exception("Set 'experiment_path' in configuration file")
 
         self.run_date = datetime.datetime.now()
-        self._loader = self._resolve_loader(dataset_name)
-
-    def _resolve_loader(self, dataset_name: str | None) -> BaseDataLoader | None:
-        name = dataset_name or self.conf.get("dataset_name")
-        if not name:
-            return None
-        config = DatasetRegistry().get(name)
-        module = importlib.import_module(config.loader_module)
-        loader_class = getattr(module, config.loader_class)
-        return loader_class(config=config)
 
     def set_mlflow_experiment(self):
 
@@ -100,20 +71,14 @@ class Forecaster:
         )
         return experiment_id
 
-    def resolve_source(self, key: str):
-
+    def resolve_source(self, key: str) -> DataFrame:
         if self.data_conf:
             df_val = self.data_conf.get(key)
-            if isinstance(df_val, BaseDataLoader):
-                return self.spark.createDataFrame(df_val.load())
             if isinstance(df_val, pd.DataFrame):
                 return self.spark.createDataFrame(df_val)
             if isinstance(df_val, DataFrame):
                 return df_val
-            else:
-                df_val = self.load_data()
-                # convert to spark dataframe
-                return self.spark.createDataFrame(df_val)
+        return self.spark.read.table(self.conf[key])
 
     def split_df_train_val(self, df: pd.DataFrame):
         train_df = df[
@@ -186,35 +151,11 @@ class Forecaster:
 
         print("Finished scoring all models")
 
-    def load_data(self):
-        loader = self._loader or WalmartDataLoader()
-        df_train = loader.load()
-        df_train, _ = pre_process_data(
-            df_train,
-            target_column=self.conf.get("target"),
-            group_columns=[self.conf.get("group_id"), self.conf.get("date_col")],
-            date_column=self.conf.get("date_col"),
-        )
-        # filter onyly 10 combinations time series to test the code
-        # get the unique group_id from index (group_id, date)
-
-        combinations = df_train.index.get_level_values(0).unique()
-
-        df_train = df_train.loc[combinations]
-
-        # count combinations in df_train
-        print(
-            f"Number of combinations in df_train: {df_train.index.get_level_values(0).nunique()}"
-        )
-
-        return df_train.reset_index()
-
     @staticmethod
     def score_one_local_model(
-        self, pdf: pd.DataFrame, model: ForecastingRegressor
+        pdf: pd.DataFrame, model: ForecastingRegressor
     ) -> pd.DataFrame:
 
-        # convert to datetime.
         pdf[model.params["date_col"]] = pd.to_datetime(pdf[model.params["date_col"]])
         pdf.sort_values(by=model.params["date_col"], inplace=True)
         group_id = pdf[model.params["group_id"]].iloc[0]
@@ -225,26 +166,26 @@ class Forecaster:
             data = [
                 group_id,
                 res_df[model.params["date_col"]].to_numpy(),
-                res_df["target"].to_numpy(),
+                res_df[model.params["target"]].to_numpy(),
                 cloudpickle.dumps(model_fitted),
             ]
         except:
             data = [group_id, None, None, None]
 
         res_df = pd.DataFrame(
-            columns=["group_id", "date", "target", "model_pickle"], data=[data]
+            columns=[model.params["group_id"], model.params["date_col"], model.params["target"], "model_pickle"],
+            data=[data],
         )
         return res_df
 
     def score_local_model(self, model_conf):
-        # FIXME: df_test does not have actual validation data, its just the kaggle prediction data.
-        src_df = self.resolve_source("train_data")
+        src_df = self.resolve_source("train_data").toPandas()
         model = self.model_registry.get_model(model_conf["name"])
+        group_col = self.conf["group_id"]
 
-        # train model for each combination.
         combinations_results = []
-        for group_id in src_df["group_id"].unique():
-            pdf = src_df[src_df["group_id"] == group_id]
+        for group_id in src_df[group_col].unique():
+            pdf = src_df[src_df[group_col] == group_id]
             res_df = self.score_one_local_model(pdf, model)
             res_df["run_id"] = self.run_id
             res_df["model_name"] = model_conf["name"]

@@ -1,6 +1,7 @@
 import argparse
 import os
 
+from forecast_forge.datasets.walmart import load_walmart_data
 from forecast_forge.run_forecast import run_forecast
 from pyspark.sql import SparkSession
 
@@ -44,9 +45,11 @@ if not active_models:
 
 spark = SparkSession.builder.appName("forecast").getOrCreate()
 
+df = load_walmart_data()
+
 run_forecast(
     spark=spark,
-    train_data="train_data",
+    train_data=df,
     evaluation_output="weekly_evaluation_output",
     group_id="group_id",
     date_col="date",

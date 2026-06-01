@@ -2,7 +2,7 @@
 
 ## Status
 
-Done
+**Superseded** — the WalmartDataLoader class was replaced by a standalone `load_walmart_data()` function in `datasets/walmart/__init__.py`. The `data_processing.py` transforms were absorbed into that function. `BaseDataLoader` inheritance and `SchemaAdapter` usage were removed.
 
 ## Epic
 

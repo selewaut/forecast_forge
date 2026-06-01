@@ -2,7 +2,7 @@
 
 ## Status
 
-Planned
+**Superseded** — BaseDataLoader, SchemaAdapter, and DataLoadingConfig were removed. Data loading is now handled by per-dataset scripts (e.g., `datasets/walmart/load_walmart_data()`).
 
 ## Epic
 

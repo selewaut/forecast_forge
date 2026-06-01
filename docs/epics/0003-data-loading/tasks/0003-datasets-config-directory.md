@@ -2,7 +2,7 @@
 
 ## Status
 
-Done
+**Superseded** — the `datasets/` YAML config directory and `DatasetRegistry` were removed. Dataset configuration is now handled via per-dataset Python modules (e.g., `datasets/walmart/`). Schema validation (`SchemaValidationError`) was removed along with `DatasetRegistry`.
 
 ## Epic
 
