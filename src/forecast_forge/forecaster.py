@@ -273,6 +273,25 @@ class Forecaster:
             # res_df = evaluate_one_local_model_fn(res_df)
             n_tasks = src_df.select(self.conf["group_id"]).distinct().count()
 
+            mlflow.log_params({
+                "model_name": model_conf["name"],
+                "group_id": self.conf.get("group_id"),
+                "date_col": self.conf.get("date_col"),
+                "target": self.conf.get("target"),
+                "freq": self.conf.get("freq"),
+                "prediction_length": self.conf.get("prediction_length"),
+                "backtest_periods": self.conf.get("backtest_periods"),
+                "stride": self.conf.get("stride"),
+                "metric": self.conf.get("metric"),
+                "use_case": self.conf.get("use_case_name", ""),
+                "accelerator": self.conf.get("accelerator", "cpu"),
+            })
+            mlflow.set_tag("n_groups", str(n_tasks))
+            mlflow.set_tag("run_id", self.run_id)
+            mlflow.set_tag("forecast_run_id", self.run_id)
+            if self.conf.get("run_name"):
+                mlflow.set_tag("forecast_run_name", self.conf["run_name"])
+
             res_sdf = (
                 src_df.repartition(n_tasks)
                 .groupby(self.conf["group_id"])
@@ -308,8 +327,3 @@ class Forecaster:
             for rec in res_df.values:
                 metric_name, metric_value = rec
                 mlflow.log_metric(metric_name, metric_value)
-                mlflow.set_tag("model_name", model_conf["name"])
-                mlflow.set_tag("run_id", self.run_id)
-                mlflow.set_tag("forecast_run_id", self.run_id)
-                if self.conf.get("run_name"):
-                    mlflow.set_tag("forecast_run_name", self.conf["run_name"])
