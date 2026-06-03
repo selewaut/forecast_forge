@@ -17,12 +17,12 @@ Standardize MLflow logging across the pipeline so every run captures consistent,
 
 ## Tasks
 
-- [ ] [Task 0016: Centralize and standardize MLflow logging](../tasks/0016-mlflow-logging-standardization.md)
-- [ ] [Task 0017: Log forecast plots and residual diagnostics as artifacts](../tasks/0017-forecast-plot-logging.md)
+- [ ] [Task 0016: Centralize and standardize MLflow logging](tasks/0016-mlflow-logging-standardization.md)
+- [ ] [Task 0017: Log forecast plots and residual diagnostics as artifacts](tasks/0017-forecast-plot-logging.md)
 
 ## Decisions
 
-- [ ] [ADR 0007: MLflow artifact organization for forecasting runs](../ADRs/0007-mlflow-artifact-organization.md)
+- [ ] [ADR 0007: MLflow artifact organization for forecasting runs](../../ADRs/0007-mlflow-artifact-organization.md)
 
 ## Notes
 

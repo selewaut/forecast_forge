@@ -6,7 +6,7 @@ Planned | In progress | Done
 
 ## Epic
 
-[Epic NNNN: Title](../epics/NNNN-title.md)
+[Epic NNNN: Title](../NNNN-epic-name/index.md)
 
 ## Objective
 

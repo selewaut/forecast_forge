@@ -16,11 +16,11 @@ Build a lightweight Streamlit dashboard for exploring forecasts and comparing ex
 
 ## Tasks
 
-- [ ] [Task 0018: Build Streamlit dashboard with MLflow browsing](../tasks/0018-streamlit-mlflow-dashboard.md)
+- [ ] [Task 0018: Build Streamlit dashboard with MLflow browsing](tasks/0018-streamlit-mlflow-dashboard.md)
 
 ## Decisions
 
-- [ ] [ADR 0008: Streamlit as UI framework](../ADRs/0008-streamlit-ui-framework.md)
+- [ ] [ADR 0008: Streamlit as UI framework](../../ADRs/0008-streamlit-ui-framework.md)
 
 ## Notes
 

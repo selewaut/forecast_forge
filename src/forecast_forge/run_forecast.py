@@ -1,28 +1,28 @@
 import pathlib
 from typing import Any, Union, List, Dict
+
 import pandas as pd
+import yaml
 from omegaconf import OmegaConf
 from omegaconf.basecontainer import BaseContainer
 from pyspark.sql import SparkSession, DataFrame
 
-
 import importlib.resources as pkg_resources
-import yaml
 from forecast_forge.forecaster import Forecaster
 
 
 def run_forecast(
     spark: SparkSession,
-    train_data,
-    group_id,
-    date_col,
-    target,
-    freq,
-    prediction_length,
-    backtest_periods,
-    stride,
+    train_data: Union[str, pd.DataFrame, DataFrame],
+    group_id: str,
+    date_col: str,
+    target: str,
+    freq: str,
+    prediction_length: int,
+    backtest_periods: int,
+    stride: int,
     metric: str = "smape",
-    scoring_data: Union[str, pd.DataFrame] = None,
+    scoring_data: Union[str, pd.DataFrame, DataFrame] = None,
     scoring_output: str = None,
     evaluation_output: str = None,
     model_output: str = None,
@@ -51,7 +51,6 @@ def run_forecast(
     else:
         _conf = OmegaConf.create()
 
-    # base config is in forecast_config.yaml
     base_conf = OmegaConf.create(
         pkg_resources.read_text("forecast_forge", "forecast_config.yaml")
     )
@@ -59,13 +58,11 @@ def run_forecast(
 
     _data_conf = {}
 
-    if train_data is not None and (isinstance(train_data, pd.DataFrame)):
+    if isinstance(train_data, (pd.DataFrame, DataFrame)):
         _data_conf["train_data"] = train_data
-
     else:
-        _data_conf["train_data"] = train_data
+        _conf["train_data"] = train_data
 
-    _conf["train_data"] = train_data
     _conf["group_id"] = group_id
     _conf["date_col"] = date_col
     _conf["target"] = target
@@ -82,7 +79,7 @@ def run_forecast(
     if scoring_data is not None and scoring_output is not None:
         run_scoring = True
         _conf["scoring_output"] = scoring_output
-        if scoring_data is not None and (isinstance(scoring_data, pd.DataFrame)):
+        if isinstance(scoring_data, (pd.DataFrame, DataFrame)):
             _data_conf["scoring_data"] = scoring_data
         else:
             _conf["scoring_data"] = scoring_data
@@ -116,4 +113,4 @@ def run_forecast(
     f = Forecaster(_conf, _data_conf, run_id=run_id, spark=spark)
 
     run_id = f.evaluate_score(evaluate=run_evaluation, score=run_scoring)
-    return run_id  # Ensure this line is present
+    return run_id

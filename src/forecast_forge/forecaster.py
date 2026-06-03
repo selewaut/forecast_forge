@@ -1,33 +1,20 @@
 import datetime
 import functools
-import pathlib
-import uuid
-
-import cloudpickle
-import mlflow
-import pandas as pd
-import yaml
-from mlflow.tracking import MlflowClient
-from omegaconf import OmegaConf
-from omegaconf.basecontainer import BaseContainer
-
-import os
-import functools
 import logging
 import pathlib
 import uuid
-import yaml
 from typing import Dict, Any, Tuple, Union
-import pandas as pd
-import numpy as np
+
 import cloudpickle
 import mlflow
+import numpy as np
+import pandas as pd
+import yaml
 from mlflow.tracking import MlflowClient
-from mlflow.models import ModelSignature, infer_signature
-from mlflow.types.schema import Schema, ColSpec
 from omegaconf import OmegaConf
 from omegaconf.basecontainer import BaseContainer
 from pyspark.sql import SparkSession, DataFrame
+from pyspark.sql.functions import col, lit
 from pyspark.sql.types import (
     StructType,
     StructField,
@@ -37,23 +24,9 @@ from pyspark.sql.types import (
     TimestampType,
     BinaryType,
     ArrayType,
-    IntegerType,
-)
-from pyspark.sql.functions import (
-    lit,
-    avg,
-    min,
-    max,
-    col,
-    posexplode,
-    collect_list,
-    to_date,
-    countDistinct,
 )
 
 from forecast_forge.abstract_model import ForecastingRegressor
-from forecast_forge.data_loader import load_data
-from forecast_forge.data_processing import pre_process_data
 from forecast_forge.model_registry import ModelRegistry
 
 
@@ -98,18 +71,14 @@ class Forecaster:
         )
         return experiment_id
 
-    def resolve_source(self, key: str):
-
+    def resolve_source(self, key: str) -> DataFrame:
         if self.data_conf:
             df_val = self.data_conf.get(key)
-            if df_val is not None and isinstance(df_val, pd.DataFrame):
+            if isinstance(df_val, pd.DataFrame):
                 return self.spark.createDataFrame(df_val)
-            elif df_val is not None and isinstance(df_val, DataFrame):
+            if isinstance(df_val, DataFrame):
                 return df_val
-            else:
-                df_val = self.load_data()
-                # convert to spark dataframe
-                return self.spark.createDataFrame(df_val)
+        return self.spark.read.table(self.conf[key])
 
     def split_df_train_val(self, df: pd.DataFrame):
         train_df = df[
@@ -182,37 +151,11 @@ class Forecaster:
 
         print("Finished scoring all models")
 
-    def load_data(self):
-        df_train, df_test, df_features, df_stores = load_data()
-        df_train, df_test = pre_process_data(
-            df_train,
-            df_test,
-            df_features,
-            df_stores,
-            target_column=self.conf.get("target"),
-            group_columns=[self.conf.get("group_id"), self.conf.get("date_col")],
-            date_column=self.conf.get("date_col"),
-        )
-        # filter onyly 10 combinations time series to test the code
-        # get the unique group_id from index (group_id, date)
-
-        combinations = df_train.index.get_level_values(0).unique()
-
-        df_train = df_train.loc[combinations]
-
-        # count combinations in df_train
-        print(
-            f"Number of combinations in df_train: {df_train.index.get_level_values(0).nunique()}"
-        )
-
-        return df_train.reset_index()
-
     @staticmethod
     def score_one_local_model(
-        self, pdf: pd.DataFrame, model: ForecastingRegressor
+        pdf: pd.DataFrame, model: ForecastingRegressor
     ) -> pd.DataFrame:
 
-        # convert to datetime.
         pdf[model.params["date_col"]] = pd.to_datetime(pdf[model.params["date_col"]])
         pdf.sort_values(by=model.params["date_col"], inplace=True)
         group_id = pdf[model.params["group_id"]].iloc[0]
@@ -223,26 +166,26 @@ class Forecaster:
             data = [
                 group_id,
                 res_df[model.params["date_col"]].to_numpy(),
-                res_df["target"].to_numpy(),
+                res_df[model.params["target"]].to_numpy(),
                 cloudpickle.dumps(model_fitted),
             ]
         except:
             data = [group_id, None, None, None]
 
         res_df = pd.DataFrame(
-            columns=["group_id", "date", "target", "model_pickle"], data=[data]
+            columns=[model.params["group_id"], model.params["date_col"], model.params["target"], "model_pickle"],
+            data=[data],
         )
         return res_df
 
     def score_local_model(self, model_conf):
-        # FIXME: df_test does not have actual validation data, its just the kaggle prediction data.
-        src_df = self.resolve_source("train_data")
+        src_df = self.resolve_source("train_data").toPandas()
         model = self.model_registry.get_model(model_conf["name"])
+        group_col = self.conf["group_id"]
 
-        # train model for each combination.
         combinations_results = []
-        for group_id in src_df["group_id"].unique():
-            pdf = src_df[src_df["group_id"] == group_id]
+        for group_id in src_df[group_col].unique():
+            pdf = src_df[src_df[group_col] == group_id]
             res_df = self.score_one_local_model(pdf, model)
             res_df["run_id"] = self.run_id
             res_df["model_name"] = model_conf["name"]
@@ -330,6 +273,25 @@ class Forecaster:
             # res_df = evaluate_one_local_model_fn(res_df)
             n_tasks = src_df.select(self.conf["group_id"]).distinct().count()
 
+            mlflow.log_params({
+                "model_name": model_conf["name"],
+                "group_id": self.conf.get("group_id"),
+                "date_col": self.conf.get("date_col"),
+                "target": self.conf.get("target"),
+                "freq": self.conf.get("freq"),
+                "prediction_length": self.conf.get("prediction_length"),
+                "backtest_periods": self.conf.get("backtest_periods"),
+                "stride": self.conf.get("stride"),
+                "metric": self.conf.get("metric"),
+                "use_case": self.conf.get("use_case_name", ""),
+                "accelerator": self.conf.get("accelerator", "cpu"),
+            })
+            mlflow.set_tag("n_groups", str(n_tasks))
+            mlflow.set_tag("run_id", self.run_id)
+            mlflow.set_tag("forecast_run_id", self.run_id)
+            if self.conf.get("run_name"):
+                mlflow.set_tag("forecast_run_name", self.conf["run_name"])
+
             res_sdf = (
                 src_df.repartition(n_tasks)
                 .groupby(self.conf["group_id"])
@@ -365,8 +327,3 @@ class Forecaster:
             for rec in res_df.values:
                 metric_name, metric_value = rec
                 mlflow.log_metric(metric_name, metric_value)
-                mlflow.set_tag("model_name", model_conf["name"])
-                mlflow.set_tag("run_id", self.run_id)
-                mlflow.set_tag("forecast_run_id", self.run_id)
-                if self.conf.get("run_name"):
-                    mlflow.set_tag("forecast_run_name", self.conf["run_name"])

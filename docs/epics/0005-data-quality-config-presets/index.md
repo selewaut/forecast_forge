@@ -16,13 +16,13 @@ Add data validation as a mandatory pipeline stage and create frequency-specific 
 
 ## Tasks
 
-- [ ] [Task 0011: Port data quality checks from MMF](../tasks/0011-data-quality-checks.md)
-- [ ] [Task 0012: Create frequency-specific config presets](../tasks/0012-freq-specific-configs.md)
-- [ ] [Task 0013: Align config naming to MMF conventions](../tasks/0013-config-naming-alignment.md)
+- [ ] [Task 0011: Port data quality checks from MMF](tasks/0011-data-quality-checks.md)
+- [ ] [Task 0012: Create frequency-specific config presets](tasks/0012-freq-specific-configs.md)
+- [ ] [Task 0013: Align config naming to MMF conventions](tasks/0013-config-naming-alignment.md)
 
 ## Decisions
 
-- [ ] [ADR 0005: Data quality check design and threshold configuration](../ADRs/0005-data-quality-thresholds.md)
+- [ ] [ADR 0005: Data quality check design and threshold configuration](../../ADRs/0005-data-quality-thresholds.md)
 
 ## Notes
 

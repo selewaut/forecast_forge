@@ -34,11 +34,11 @@ data: $(DATA_FILES) ## Download and verify the Walmart forecasting dataset.
 
 $(DATA_FILES):
 	@echo "Downloading Walmart dataset from Kaggle..."
-	uv run python -c "from forecast_forge.data import download_data; download_data()"
+	uv run python -c "from forecast_forge.datasets.walmart import load_walmart_data; load_walmart_data()"
 	@echo "✓ Data downloaded to $(DATA_DIR)"
 
 run: ## Run the local Spark forecasting pipeline. Optionally pass MODEL=<model>.
-	direnv exec . uv run spark-submit --master 'local[*]' src/forecast_forge/univariate_weekly.py $(if $(MODEL),--model $(MODEL),)
+	MLFLOW_TRACKING_URI=sqlite:///mlflow.db direnv exec . uv run spark-submit --master 'local[*]' src/forecast_forge/univariate_weekly.py $(if $(MODEL),--model $(MODEL),)
 
 clean: ## Remove generated forecast, Spark, and MLflow artifact outputs.
 	rm -rf $(OUTPUT_DIR) mlruns
